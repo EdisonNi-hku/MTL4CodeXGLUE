@@ -6,11 +6,11 @@ import argparse
 def get_cmd(task, sub_task, model_tag, gpu, data_num, bs, lr, source_length, target_length, patience, epoch, warmup,
             model_dir, summary_dir, res_fn, max_steps=None, save_steps=None, log_steps=None):
     if max_steps is None:
-        cmd_str = 'bash exp_with_args.sh %s %s %s %d %d %d %d %d %d %d %d %d %s %s %s' % \
+        cmd_str = 'bash code/exp_with_args.sh %s %s %s %d %d %d %d %d %d %d %d %d %s %s %s' % \
                   (task, sub_task, model_tag, gpu, data_num, bs, lr, source_length, target_length, patience, epoch,
                    warmup, model_dir, summary_dir, res_fn)
     else:
-        cmd_str = 'bash exp_with_args.sh %s %s %s %d %d %d %d %d %d %d %d %d %s %s %s %d %d %d' % \
+        cmd_str = 'bash code/exp_with_args.sh %s %s %s %d %d %d %d %d %d %d %d %d %s %s %s %d %d %d' % \
                   (task, sub_task, model_tag, gpu, data_num, bs, lr, source_length, target_length, patience, epoch,
                    warmup, model_dir, summary_dir, res_fn, max_steps, save_steps, log_steps)
     return cmd_str
