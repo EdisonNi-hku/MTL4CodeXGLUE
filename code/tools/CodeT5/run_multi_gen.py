@@ -78,9 +78,9 @@ def get_bs(cur_task, model_tag):
             bs = 64
     else:
         # codet5_base
-        bs = 28
+        bs = 32
         if task == 'translate':
-            bs = 25
+            bs = 24
         elif task == 'summarize':
             bs = 40
     return bs

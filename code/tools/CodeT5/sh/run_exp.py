@@ -75,11 +75,11 @@ def get_args_by_task_model(task, sub_task, model_tag):
         if task == 'summarize' or task == 'translate' or (task == 'refine' and sub_task == 'small'):
             bs = 64
         elif task == 'clone':
-            bs = 25
+            bs = 24
     else:
         bs = 32
         if task == 'translate':
-            bs = 25
+            bs = 24
         elif task == 'summarize':
             bs = 48
         elif task == 'clone':
@@ -110,9 +110,9 @@ def run_one_exp(args):
 def run_multi_task_exp(args):
     # Total train data num = 1149722 (for all five tasks)
     if 'codet5_small' in args.model_tag:
-        bs, lr, max_steps, save_steps, log_steps = 60, 5, 600000, 20000, 100
+        bs, lr, max_steps, save_steps, log_steps = 64, 5, 600000, 20000, 100
     else:
-        bs, lr, max_steps, save_steps, log_steps = 25, 5, 800000, 20000, 100
+        bs, lr, max_steps, save_steps, log_steps = 32, 5, 800000, 20000, 100
 
     if args.data_num != -1:
         max_steps, save_steps, log_steps = 1000, 200, 50

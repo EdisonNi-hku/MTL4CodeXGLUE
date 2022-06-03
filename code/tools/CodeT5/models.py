@@ -102,7 +102,7 @@ class CloneModel(nn.Module):
     def forward(self, source_ids=None, labels=None):
         source_ids = source_ids.view(-1, self.args.max_source_length)
 
-        if self.args.model_type == 'codet5':
+        if self.args.model_type == 'codet5' or self.args.model_type == 't5':
             vec = self.get_t5_vec(source_ids)
         elif self.args.model_type == 'bart':
             vec = self.get_bart_vec(source_ids)
@@ -163,7 +163,7 @@ class DefectModel(nn.Module):
     def forward(self, source_ids=None, labels=None):
         source_ids = source_ids.view(-1, self.args.max_source_length)
 
-        if self.args.model_type == 'codet5':
+        if self.args.model_type == 'codet5' or self.args.model_type == 't5':
             vec = self.get_t5_vec(source_ids)
         elif self.args.model_type == 'bart':
             vec = self.get_bart_vec(source_ids)
