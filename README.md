@@ -25,68 +25,68 @@ vim code/exp_with_args.sh
 
 # Run the experiments
 # CodeT5
-python run_exp.py --model_tag codet5_base --task summarize --sub_task python
-python run_exp.py --model_tag codet5_base --task summarize --sub_task java
-python run_exp.py --model_tag codet5_base --task summarize --sub_task php
-python run_exp.py --model_tag codet5_base --task summarize --sub_task ruby
-python run_exp.py --model_tag codet5_base --task summarize --sub_task javascript
-python run_exp.py --model_tag codet5_base --task summarize --sub_task go
+python code/run_exp.py --model_tag codet5_base --task summarize --sub_task python
+python code/run_exp.py --model_tag codet5_base --task summarize --sub_task java
+python code/run_exp.py --model_tag codet5_base --task summarize --sub_task php
+python code/run_exp.py --model_tag codet5_base --task summarize --sub_task ruby
+python code/run_exp.py --model_tag codet5_base --task summarize --sub_task javascript
+python code/run_exp.py --model_tag codet5_base --task summarize --sub_task go
 
-python run_exp.py --model_tag codet5_base --task concode --sub_task none
+python code/run_exp.py --model_tag codet5_base --task concode --sub_task none
 
-python run_exp.py --model_tag codet5_base --task translate --sub_task java-cs
-python run_exp.py --model_tag codet5_base --task translate --sub_task cs-java
+python code/run_exp.py --model_tag codet5_base --task translate --sub_task java-cs
+python code/run_exp.py --model_tag codet5_base --task translate --sub_task cs-java
 
-python run_exp.py --model_tag codet5_base --task refine --sub_task small
-python run_exp.py --model_tag codet5_base --task refine --sub_task medium
+python code/run_exp.py --model_tag codet5_base --task refine --sub_task small
+python code/run_exp.py --model_tag codet5_base --task refine --sub_task medium
 
-python run_exp.py --model_tag codet5_base --task defect --sub_task none
+python code/run_exp.py --model_tag codet5_base --task defect --sub_task none
 
-python run_exp.py --model_tag codet5_base --task clone --sub_task none
+python code/run_exp.py --model_tag codet5_base --task clone --sub_task none
 
-python run_exp.py --model_tag codet5_base --task multi_task --sub_task none
+python code/run_exp.py --model_tag codet5_base --task multi_task --sub_task none
 
 # T5
-python run_exp.py --model_tag t5_base --task summarize --sub_task python
-python run_exp.py --model_tag t5_base --task summarize --sub_task java
-python run_exp.py --model_tag t5_base --task summarize --sub_task php
-python run_exp.py --model_tag t5_base --task summarize --sub_task ruby
-python run_exp.py --model_tag t5_base --task summarize --sub_task javascript
-python run_exp.py --model_tag t5_base --task summarize --sub_task go
+python code/run_exp.py --model_tag t5_base --task summarize --sub_task python
+python code/run_exp.py --model_tag t5_base --task summarize --sub_task java
+python code/run_exp.py --model_tag t5_base --task summarize --sub_task php
+python code/run_exp.py --model_tag t5_base --task summarize --sub_task ruby
+python code/run_exp.py --model_tag t5_base --task summarize --sub_task javascript
+python code/run_exp.py --model_tag t5_base --task summarize --sub_task go
 
-python run_exp.py --model_tag t5_base --task concode --sub_task none
+python code/run_exp.py --model_tag t5_base --task concode --sub_task none
 
-python run_exp.py --model_tag t5_base --task translate --sub_task java-cs
-python run_exp.py --model_tag t5_base --task translate --sub_task cs-java
+python code/run_exp.py --model_tag t5_base --task translate --sub_task java-cs
+python code/run_exp.py --model_tag t5_base --task translate --sub_task cs-java
 
-python run_exp.py --model_tag t5_base --task refine --sub_task small
-python run_exp.py --model_tag t5_base --task refine --sub_task medium
+python code/run_exp.py --model_tag t5_base --task refine --sub_task small
+python code/run_exp.py --model_tag t5_base --task refine --sub_task medium
 
-python run_exp.py --model_tag t5_base --task defect --sub_task none
+python code/run_exp.py --model_tag t5_base --task defect --sub_task none
 
-python run_exp.py --model_tag t5_base --task clone --sub_task none
+python code/run_exp.py --model_tag t5_base --task clone --sub_task none
 
-python run_exp.py --model_tag t5_base --task multi_task --sub_task none
+python code/run_exp.py --model_tag t5_base --task multi_task --sub_task none
 
 # CoTexT
-python run_exp.py --model_tag cotext --task summarize --sub_task python
-python run_exp.py --model_tag cotext --task summarize --sub_task java
-python run_exp.py --model_tag cotext --task summarize --sub_task php
-python run_exp.py --model_tag cotext --task summarize --sub_task ruby
-python run_exp.py --model_tag cotext --task summarize --sub_task javascript
-python run_exp.py --model_tag cotext --task summarize --sub_task go
+python code/run_exp.py --model_tag cotext --task summarize --sub_task python
+python code/run_exp.py --model_tag cotext --task summarize --sub_task java
+python code/run_exp.py --model_tag cotext --task summarize --sub_task php
+python code/run_exp.py --model_tag cotext --task summarize --sub_task ruby
+python code/run_exp.py --model_tag cotext --task summarize --sub_task javascript
+python code/run_exp.py --model_tag cotext --task summarize --sub_task go
 
-python run_exp.py --model_tag cotext --task concode --sub_task none
+python code/run_exp.py --model_tag cotext --task concode --sub_task none
 
-python run_exp.py --model_tag cotext --task translate --sub_task java-cs
-python run_exp.py --model_tag cotext --task translate --sub_task cs-java
+python code/run_exp.py --model_tag cotext --task translate --sub_task java-cs
+python code/run_exp.py --model_tag cotext --task translate --sub_task cs-java
 
-python run_exp.py --model_tag cotext --task refine --sub_task small
-python run_exp.py --model_tag cotext --task refine --sub_task medium
+python code/run_exp.py --model_tag cotext --task refine --sub_task small
+python code/run_exp.py --model_tag cotext --task refine --sub_task medium
 
-python run_exp.py --model_tag cotext --task defect --sub_task none
+python code/run_exp.py --model_tag cotext --task defect --sub_task none
 
-python run_exp.py --model_tag cotext --task clone --sub_task none
+python code/run_exp.py --model_tag cotext --task clone --sub_task none
 
-python run_exp.py --model_tag cotext --task multi_task --sub_task none
+python code/run_exp.py --model_tag cotext --task multi_task --sub_task none
 ```
