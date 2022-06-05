@@ -23,16 +23,16 @@ def get_model_size(model):
 def build_or_load_gen_model(args):
     config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
     config = config_class.from_pretrained(args.config_name if args.config_name else args.model_name_or_path)
-    tokenizer = tokenizer_class.from_pretrained(args.tokenizer_name, local_files_only=True)
+    tokenizer = tokenizer_class.from_pretrained(args.tokenizer_name, cache_dir='cache')
     if args.model_type == 'roberta':
-        encoder = model_class.from_pretrained(args.model_name_or_path, config=config, local_files_only=True)
+        encoder = model_class.from_pretrained(args.model_name_or_path, config=config, cache_dir='cache')
         decoder_layer = nn.TransformerDecoderLayer(d_model=config.hidden_size, nhead=config.num_attention_heads)
         decoder = nn.TransformerDecoder(decoder_layer, num_layers=6)
         model = Seq2Seq(encoder=encoder, decoder=decoder, config=config,
                         beam_size=args.beam_size, max_length=args.max_target_length,
                         sos_id=tokenizer.cls_token_id, eos_id=tokenizer.sep_token_id)
     else:
-        model = model_class.from_pretrained(args.model_name_or_path, local_files_only=True)
+        model = model_class.from_pretrained(args.model_name_or_path, cache_dir='cache')
 
     logger.info("Finish loading model [%s] from %s", get_model_size(model), args.model_name_or_path)
 

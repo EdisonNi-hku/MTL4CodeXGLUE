@@ -69,7 +69,7 @@ elif [[ $MODEL_TAG == cotext ]]; then
   MODEL_TYPE=t5
   TOKENIZER=razent/cotext-2-cc
   MODEL_PATH=razent/cotext-2-cc
-elif [[ $MODEL_TAG == t5-base ]]; then
+elif [[ $MODEL_TAG == t5_base ]]; then
   MODEL_TYPE=t5
   TOKENIZER=t5-base
   MODEL_PATH=t5-base
