@@ -5,6 +5,7 @@ import os
 import random
 import torch
 import time
+import json
 from tqdm import tqdm
 from _utils import *
 
@@ -261,3 +262,12 @@ def get_elapse_time(t0):
     else:
         minute = int((elapse_time % 3600) // 60)
         return "{}m".format(minute)
+
+
+def save_checkpoint(training_state, optimizer, scheduler, model_to_save, output_model_file,
+                    output_optimizer_file, output_scheduler_file, last_output_dir):
+    torch.save(model_to_save.state_dict(), output_model_file)
+    torch.save(optimizer.state_dict(), output_optimizer_file)
+    torch.save(scheduler.state_dict(), output_scheduler_file)
+    with open(os.path.join(last_output_dir, "training_state.json"), 'w') as f:
+        json.dump(training_state, f)

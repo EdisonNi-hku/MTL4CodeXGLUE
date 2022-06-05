@@ -87,6 +87,7 @@ else
   RUN_FN=${WORKDIR}/run_gen.py
 fi
 
+CONT=${19}
 
 CUDA_VISIBLE_DEVICES=${GPU} \
   python ${RUN_FN}  \
@@ -96,5 +97,5 @@ CUDA_VISIBLE_DEVICES=${GPU} \
   --tokenizer_name=${TOKENIZER}  --model_name_or_path=${MODEL_PATH} --data_dir ${DATADIR}  \
   --cache_path ${CACHE_DIR}  --output_dir ${OUTPUT_DIR}  --summary_dir ${SUMMARY_DIR} \
   --save_last_checkpoints --always_save_model --res_dir ${RES_DIR} --res_fn ${RES_FN} \
-  --train_batch_size ${BS} --eval_batch_size ${BS} --max_source_length ${SRC_LEN} --max_target_length ${TRG_LEN} \
+  --train_batch_size ${BS} --eval_batch_size ${BS} --max_source_length ${SRC_LEN} --max_target_length ${TRG_LEN} --cont ${CONT} \
   2>&1 | tee ${LOG}

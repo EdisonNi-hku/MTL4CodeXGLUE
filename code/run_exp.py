@@ -4,15 +4,15 @@ import argparse
 
 
 def get_cmd(task, sub_task, model_tag, gpu, data_num, bs, lr, source_length, target_length, patience, epoch, warmup,
-            model_dir, summary_dir, res_fn, max_steps=None, save_steps=None, log_steps=None):
+            model_dir, summary_dir, res_fn, cont, max_steps=None, save_steps=None, log_steps=None):
     if max_steps is None:
-        cmd_str = 'bash code/exp_with_args.sh %s %s %s %d %d %d %d %d %d %d %d %d %s %s %s' % \
+        cmd_str = 'bash code/exp_with_args.sh %s %s %s %s %d %d %d %d %d %d %d %d %s %s %s %d' % \
                   (task, sub_task, model_tag, gpu, data_num, bs, lr, source_length, target_length, patience, epoch,
-                   warmup, model_dir, summary_dir, res_fn)
+                   warmup, model_dir, summary_dir, res_fn, cont)
     else:
-        cmd_str = 'bash code/exp_with_args.sh %s %s %s %d %d %d %d %d %d %d %d %d %s %s %s %d %d %d' % \
+        cmd_str = 'bash code/exp_with_args.sh %s %s %s %s %d %d %d %d %d %d %d %d %s %s %s %d %d %d %d' % \
                   (task, sub_task, model_tag, gpu, data_num, bs, lr, source_length, target_length, patience, epoch,
-                   warmup, model_dir, summary_dir, res_fn, max_steps, save_steps, log_steps)
+                   warmup, model_dir, summary_dir, res_fn, max_steps, save_steps, log_steps, cont)
     return cmd_str
 
 
@@ -101,7 +101,7 @@ def run_one_exp(args):
     cmd_str = get_cmd(task=args.task, sub_task=args.sub_task, model_tag=args.model_tag, gpu=args.gpu,
                       data_num=args.data_num, bs=bs, lr=lr, source_length=src_len, target_length=trg_len,
                       patience=patience, epoch=epoch, warmup=1000,
-                      model_dir=args.model_dir, summary_dir=args.summary_dir,
+                      model_dir=args.model_dir, summary_dir=args.summary_dir, cont=args.cont,
                       res_fn='{}/{}_{}.txt'.format(args.res_dir, args.task, args.model_tag))
     print('%s\n' % cmd_str)
     os.system(cmd_str)
@@ -121,7 +121,7 @@ def run_multi_task_exp(args):
                       data_num=args.data_num, bs=bs, lr=lr, source_length=-1, target_length=-1,
                       patience=-1, epoch=-1, warmup=1000,
                       model_dir=args.model_dir, summary_dir=args.summary_dir,
-                      res_fn='{}/multi_task_{}.txt'.format(args.res_dir, args.model_tag),
+                      res_fn='{}/multi_task_{}.txt'.format(args.res_dir, args.model_tag), cont=args.cont,
                       max_steps=max_steps, save_steps=save_steps, log_steps=log_steps)
     print('%s\n' % cmd_str)
     os.system(cmd_str)
@@ -142,7 +142,7 @@ def get_sub_tasks(task):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_tag", type=str, default='codet5_base',
-                        choices=['roberta', 'codebert', 'bart_base', 'codet5_small', 'codet5_base'])
+                        choices=['roberta', 'codebert', 'bart_base', 'codet5_small', 'codet5_base', 'cotext', 't5_base'])
     parser.add_argument("--task", type=str, default='summarize', choices=['summarize', 'concode', 'translate',
                                                                           'refine', 'defect', 'clone', 'multi_task'])
     parser.add_argument("--sub_task", type=str, default='ruby')
@@ -150,7 +150,8 @@ if __name__ == '__main__':
     parser.add_argument("--model_dir", type=str, default='saved_models', help='directory to save fine-tuned models')
     parser.add_argument("--summary_dir", type=str, default='tensorboard', help='directory to save tensorboard summary')
     parser.add_argument("--data_num", type=int, default=-1, help='number of data instances to use, -1 for full data')
-    parser.add_argument("--gpu", type=int, default=0, help='index of the gpu to use in a cluster')
+    parser.add_argument("--gpu", type=str, default='0', help='index of the gpu to use in a cluster')
+    parser.add_argument("--cont", type=int, default=0, help='continue previous training or not')
     args = parser.parse_args()
 
     if not os.path.exists(args.res_dir):

@@ -30,6 +30,7 @@ def add_args(parser):
     parser.add_argument("--do_eval_bleu", action='store_true', help="Whether to evaluate bleu on dev set.")
 
     ## Required parameters
+    parser.add_argument("--cont", default=0, type=int, help='continue previous training or not')
     parser.add_argument("--model_name_or_path", default="roberta-base", type=str,
                         help="Path to pre-trained model: e.g. roberta-base")
     parser.add_argument("--output_dir", default=None, type=str, required=True,
