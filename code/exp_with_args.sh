@@ -78,7 +78,7 @@ fi
 
 
 if [[ ${TASK} == 'multi_task' ]]; then
-  RUN_FN=${WORKDIR}/run_multi_gen.py
+  RUN_FN=${WORKDIR}/run_multi_gen_cont.py
   MULTI_TASK_AUG='--max_steps '${17}' --save_steps '${18}' --log_steps '${19}
   CONT_AUG='--cont '${20}
 elif [[ ${TASK} == 'clone' ]]; then

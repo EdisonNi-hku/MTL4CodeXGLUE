@@ -426,7 +426,8 @@ def main():
                                     outputs = model(input_ids=source_ids, attention_mask=source_mask,
                                                     labels=target_ids, decoder_attention_mask=target_mask)
                                     loss = outputs.loss
-
+                            if args.n_gpu > 1:
+                                loss = loss.mean()
                             eval_loss += loss.item()
                             batch_num += 1
                         # Print loss of dev dataset
