@@ -103,7 +103,7 @@ def run_one_exp(args):
                       data_num=args.data_num, bs=bs, lr=lr, source_length=src_len, target_length=trg_len,
                       patience=patience, epoch=epoch, warmup=1000,
                       model_dir=args.model_dir, summary_dir=args.summary_dir, cont=args.cont,
-                      res_fn='{}/{}_{}.txt'.format(args.res_dir, args.task, args.model_tag))
+                      res_fn='{}/{}_{}.txt'.format(args.res_dir, args.task, args.model_tag), gradient_step=args.gas)
     print('%s\n' % cmd_str)
     print('Gradient accumulate steps: ', args.gas)
     print('True batch size: ', bs * args.gas)
@@ -126,7 +126,7 @@ def run_multi_task_exp(args):
                       patience=-1, epoch=-1, warmup=1000,
                       model_dir=args.model_dir, summary_dir=args.summary_dir,
                       res_fn='{}/multi_task_{}.txt'.format(args.res_dir, args.model_tag), cont=args.cont,
-                      max_steps=max_steps, save_steps=save_steps, log_steps=log_steps)
+                      max_steps=max_steps, save_steps=save_steps, log_steps=log_steps, gradient_step=args.gas)
     print('%s\n' % cmd_str)
     print('Gradient accumulate steps: ', args.gas)
     print('True batch size: ', bs * args.gas)
