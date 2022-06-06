@@ -220,11 +220,13 @@ def main():
                 train_sampler = DistributedSampler(train_data)
             if args.data_num == -1:
                 train_dataloader = DataLoader(train_data, sampler=train_sampler,
-                                              batch_size=get_bs(cur_task, args.model_name_or_path),
+                                              batch_size=int(get_bs(cur_task, args.model_name_or_path)
+                                                             / args.gradient_accumulation_steps),
                                               num_workers=WORKER_NUM, pin_memory=True)
             else:
                 train_dataloader = DataLoader(train_data, sampler=train_sampler,
-                                              batch_size=get_bs(cur_task, args.model_name_or_path))
+                                              batch_size=int(get_bs(cur_task, args.model_name_or_path)
+                                                             / args.gradient_accumulation_steps))
 
             train_dataloader_dict[cur_task] = cycle(train_dataloader)
 
