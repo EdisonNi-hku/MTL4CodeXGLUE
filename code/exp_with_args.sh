@@ -83,10 +83,10 @@ if [[ ${TASK} == 'multi_task' ]]; then
   MULTI_TASK_AUG='--max_steps '${18}' --save_steps '${19}' --log_steps '${20}
   CONT_AUG='--cont '${21}
 elif [[ ${TASK} == 'clone' ]]; then
-  RUN_FN=${WORKDIR}/run_clone.py
+  RUN_FN=${WORKDIR}/run_clone_cont.py
   CONT_AUG='--cont '${18}
 elif [[ ${TASK} == 'defect' ]] && [[ ${MODEL_TYPE} == 'roberta' ||  ${MODEL_TYPE} == 'bart' ]]; then
-  RUN_FN=${WORKDIR}/run_defect.py
+  RUN_FN=${WORKDIR}/run_defect_cont.py
   CONT_AUG='--cont '${18}
 else
   RUN_FN=${WORKDIR}/run_gen_cont.py
