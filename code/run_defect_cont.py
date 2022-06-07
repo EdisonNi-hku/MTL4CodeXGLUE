@@ -137,7 +137,7 @@ def main():
     model = DefectModel(model, config, tokenizer, args)
     logger.info("Finish loading model [%s] from %s", get_model_size(model), args.model_name_or_path)
 
-    if args.cont != 0 and args.load_model_path != 'no':
+    if args.cont != 0 and args.load_model_path is not None:
         logger.info("Reload model from {}".format(args.load_model_path))
         model_file = os.path.join(args.load_model_path, "pytorch_model.bin")
         model.load_state_dict(torch.load(model_file))
@@ -184,7 +184,7 @@ def main():
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps,
                                                     num_training_steps=num_train_optimization_steps)
 
-        if args.cont != 0 and args.load_model_path != 'no':
+        if args.cont != 0 and args.load_model_path is not None:
             optimizer_state = torch.load(os.path.join(args.load_model_path, 'optimizer.pt'), map_location="cpu")
             scheduler_state = torch.load(os.path.join(args.load_model_path, 'scheduler.pt'), map_location="cpu")
             optimizer.load_state_dict(optimizer_state)
@@ -198,7 +198,7 @@ def main():
         logger.info("  Batch num = %d", math.ceil(train_example_num / args.train_batch_size))
         logger.info("  Num epoch = %d", args.num_train_epochs)
 
-        if args.cont != 0 and args.load_model_path != 'no':
+        if args.cont != 0 and args.load_model_path is not None:
             with open(os.path.join(args.load_model_path, "training_state.json"), 'r') as f:
                 training_state = json.load(f)
         else:
