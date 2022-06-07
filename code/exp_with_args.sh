@@ -17,7 +17,8 @@ WARMUP=${12}
 MODEL_DIR=${13}
 SUMMARY_DIR=${14}
 RES_FN=${15}
-GRADIENT_STEP=${16}
+LOAD_PATH=${16}
+GRADIENT_STEP=${17}
 
 if [[ $DATA_NUM == -1 ]]; then
   DATA_TAG='all'
@@ -79,17 +80,17 @@ fi
 
 if [[ ${TASK} == 'multi_task' ]]; then
   RUN_FN=${WORKDIR}/run_multi_gen_cont.py
-  MULTI_TASK_AUG='--max_steps '${17}' --save_steps '${18}' --log_steps '${19}
-  CONT_AUG='--cont '${20}
+  MULTI_TASK_AUG='--max_steps '${18}' --save_steps '${19}' --log_steps '${20}
+  CONT_AUG='--cont '${21}
 elif [[ ${TASK} == 'clone' ]]; then
   RUN_FN=${WORKDIR}/run_clone.py
-  CONT_AUG='--cont '${17}
+  CONT_AUG='--cont '${18}
 elif [[ ${TASK} == 'defect' ]] && [[ ${MODEL_TYPE} == 'roberta' ||  ${MODEL_TYPE} == 'bart' ]]; then
   RUN_FN=${WORKDIR}/run_defect.py
-  CONT_AUG='--cont '${17}
+  CONT_AUG='--cont '${18}
 else
-  RUN_FN=${WORKDIR}/eval_bleu_debug.py
-  CONT_AUG='--cont '${17}
+  RUN_FN=${WORKDIR}/run_gen_cont.py
+  CONT_AUG='--cont '${18}
 fi
 
 
@@ -100,6 +101,6 @@ CUDA_VISIBLE_DEVICES=${GPU} \
   --num_train_epochs ${EPOCH} --warmup_steps ${WARMUP} --learning_rate ${LR}e-5 --patience ${PATIENCE} \
   --tokenizer_name=${TOKENIZER}  --model_name_or_path=${MODEL_PATH} --data_dir ${DATADIR}  \
   --cache_path ${CACHE_DIR}  --output_dir ${OUTPUT_DIR}  --summary_dir ${SUMMARY_DIR} \
-  --save_last_checkpoints --always_save_model --res_dir ${RES_DIR} --res_fn ${RES_FN} \
+  --save_last_checkpoints --always_save_model --res_dir ${RES_DIR} --res_fn ${RES_FN} --load_model_path ${LOAD_PATH} \
   --train_batch_size ${BS} --eval_batch_size ${BS} --max_source_length ${SRC_LEN} --max_target_length ${TRG_LEN} \
   2>&1 | tee ${LOG}

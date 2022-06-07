@@ -4,15 +4,15 @@ import argparse
 
 
 def get_cmd(task, sub_task, model_tag, gpu, data_num, bs, lr, source_length, target_length, patience, epoch, warmup,
-            model_dir, summary_dir, res_fn, cont, gradient_step, max_steps=None, save_steps=None, log_steps=None):
+            model_dir, summary_dir, res_fn, load_path, cont, gradient_step, max_steps=None, save_steps=None, log_steps=None):
     if max_steps is None:
-        cmd_str = 'bash code/exp_with_args.sh %s %s %s %s %d %d %d %d %d %d %d %d %s %s %s %d %d' % \
+        cmd_str = 'bash code/exp_with_args.sh %s %s %s %s %d %d %d %d %d %d %d %d %s %s %s %s %d %d' % \
                   (task, sub_task, model_tag, gpu, data_num, bs, lr, source_length, target_length, patience, epoch,
-                   warmup, model_dir, summary_dir, res_fn, gradient_step, cont)
+                   warmup, model_dir, summary_dir, res_fn, load_path, gradient_step, cont)
     else:
-        cmd_str = 'bash code/exp_with_args.sh %s %s %s %s %d %d %d %d %d %d %d %d %s %s %s %d %d %d %d %d' % \
+        cmd_str = 'bash code/exp_with_args.sh %s %s %s %s %d %d %d %d %d %d %d %d %s %s %s %s %d %d %d %d %d' % \
                   (task, sub_task, model_tag, gpu, data_num, bs, lr, source_length, target_length, patience, epoch,
-                   warmup, model_dir, summary_dir, res_fn, gradient_step, max_steps, save_steps, log_steps, cont)
+                   warmup, model_dir, summary_dir, res_fn, load_path, gradient_step, max_steps, save_steps, log_steps, cont)
     return cmd_str
 
 
@@ -103,7 +103,8 @@ def run_one_exp(args):
                       data_num=args.data_num, bs=bs, lr=lr, source_length=src_len, target_length=trg_len,
                       patience=patience, epoch=epoch, warmup=1000,
                       model_dir=args.model_dir, summary_dir=args.summary_dir, cont=args.cont,
-                      res_fn='{}/{}_{}.txt'.format(args.res_dir, args.task, args.model_tag), gradient_step=args.gas)
+                      res_fn='{}/{}_{}.txt'.format(args.res_dir, args.task, args.model_tag), gradient_step=args.gas,
+                      load_path=args.load_model_path)
     print('%s\n' % cmd_str)
     print('Gradient accumulate steps: ', args.gas)
     print('True batch size: ', bs * args.gas)
@@ -126,7 +127,8 @@ def run_multi_task_exp(args):
                       patience=-1, epoch=-1, warmup=1000,
                       model_dir=args.model_dir, summary_dir=args.summary_dir,
                       res_fn='{}/multi_task_{}.txt'.format(args.res_dir, args.model_tag), cont=args.cont,
-                      max_steps=max_steps, save_steps=save_steps, log_steps=log_steps, gradient_step=args.gas)
+                      max_steps=max_steps, save_steps=save_steps, log_steps=log_steps, gradient_step=args.gas,
+                      load_path=args.load_model_path)
     print('%s\n' % cmd_str)
     print('Gradient accumulate steps: ', args.gas)
     print('True batch size: ', bs * args.gas)
@@ -159,6 +161,7 @@ if __name__ == '__main__':
     parser.add_argument("--gpu", type=str, default='0', help='index of the gpu to use in a cluster')
     parser.add_argument("--cont", type=int, default=0, help='continue previous training or not')
     parser.add_argument("--gas", type=int, default=1, help='gradient accumulate steps')
+    parser.add_argument("--load_model_path", type=str, default='no')
     args = parser.parse_args()
 
     if not os.path.exists(args.res_dir):

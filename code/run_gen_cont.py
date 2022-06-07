@@ -27,6 +27,7 @@ import numpy as np
 from tqdm import tqdm
 import multiprocessing
 import time
+import json
 
 import torch
 from torch.utils.tensorboard import SummaryWriter
@@ -37,7 +38,7 @@ from models import build_or_load_gen_model
 from evaluator import smooth_bleu
 from evaluator.CodeBLEU import calc_code_bleu
 from evaluator.bleu import _bleu
-from utils import get_filenames, get_elapse_time, load_and_cache_gen_data
+from utils import get_filenames, get_elapse_time, load_and_cache_gen_data, save_checkpoint
 from configs import add_args, set_seed, set_dist
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
@@ -175,6 +176,9 @@ def main():
     set_dist(args)
     set_seed(args)
     config, model, tokenizer = build_or_load_gen_model(args)
+    if args.cont != 0 and args.load_model_path != 'no':
+        model_file = os.path.join(args.load_model_path, "pytorch_model.bin")
+        model.load_state_dict(torch.load(model_file))
     model.to(args.device)
     if args.n_gpu > 1:
         # for DataParallel
@@ -207,6 +211,12 @@ def main():
                                                     num_warmup_steps=args.warmup_steps,
                                                     num_training_steps=num_train_optimization_steps)
 
+        if args.cont != 0 and args.load_model_path != 'no':
+            optimizer_state = torch.load(os.path.join(args.load_model_path, 'optimizer.pt'), map_location="cpu")
+            scheduler_state = torch.load(os.path.join(args.load_model_path, 'scheduler.pt'), map_location="cpu")
+            optimizer.load_state_dict(optimizer_state)
+            scheduler.load_state_dict(scheduler_state)
+
         # Start training
         train_example_num = len(train_data)
         logger.info("***** Running training *****")
@@ -216,12 +226,26 @@ def main():
         logger.info("  Num epoch = %d", args.num_train_epochs)
 
         dev_dataset = {}
-        global_step, best_bleu_em, best_ppl = 0, -1, 1e6
-        not_loss_dec_cnt, not_bleu_em_inc_cnt = 0, 0 if args.do_eval_bleu else 1e6
+        if args.cont != 0 and args.load_model_path != 'no':
+            with open(os.path.join(args.load_model_path, "training_state.json"), 'r') as f:
+                training_state = json.load(f)
+        else:
+            training_state = {}
+            training_state['global_step'] = 0
+            training_state['best_bleu_em'] = -1
+            training_state['best_ppl'] = 1e6
+            training_state['not_loss_dec_cnt'] = 0
+            training_state['not_bleu_em_inc_cnt'] = 0 if args.do_eval_bleu else 1e6
+            training_state['tr_loss'] = 0
+            training_state['dev_bleu_em'] = []
+            training_state['dev_ppl'] = []
+            training_state['epoch'] = 0
 
-        for cur_epoch in range(args.start_epoch, int(args.num_train_epochs)):
+        start_epoch = training_state['epoch']
+        for cur_epoch in range(start_epoch, int(args.num_train_epochs)):
             bar = tqdm(train_dataloader, total=len(train_dataloader), desc="Training")
-            nb_tr_examples, nb_tr_steps, tr_loss = 0, 0, 0
+            nb_tr_examples = 0
+            nb_tr_steps = training_state['global_step'] * args.gradient_accumulation_steps
             model.train()
             for step, batch in enumerate(bar):
                 batch = tuple(t.to(args.device) for t in batch)
@@ -241,7 +265,7 @@ def main():
                     loss = loss.mean()  # mean() to average on multi-gpu.
                 if args.gradient_accumulation_steps > 1:
                     loss = loss / args.gradient_accumulation_steps
-                tr_loss += loss.item()
+                training_state['tr_loss'] += loss.item()
 
                 nb_tr_examples += source_ids.size(0)
                 nb_tr_steps += 1
@@ -252,8 +276,8 @@ def main():
                     optimizer.step()
                     optimizer.zero_grad()
                     scheduler.step()
-                    global_step += 1
-                    train_loss = round(tr_loss * args.gradient_accumulation_steps / (nb_tr_steps + 1), 4)
+                    training_state['global_step'] += 1
+                    train_loss = round(training_state['tr_loss'] * args.gradient_accumulation_steps / (nb_tr_steps + 1), 4)
                     bar.set_description("[{}] Train loss {}".format(cur_epoch, round(train_loss, 3)))
 
             if args.do_eval:
@@ -265,11 +289,12 @@ def main():
                     dev_dataset['dev_loss'] = eval_examples, eval_data
 
                 eval_ppl = eval_ppl_epoch(args, eval_data, eval_examples, model, tokenizer)
-                result = {'epoch': cur_epoch, 'global_step': global_step, 'eval_ppl': eval_ppl}
+                result = {'epoch': cur_epoch, 'global_step': training_state['global_step'], 'eval_ppl': eval_ppl}
                 for key in sorted(result.keys()):
                     logger.info("  %s = %s", key, str(result[key]))
                 logger.info("  " + "*" * 20)
                 if args.data_num == -1:
+                    training_state['dev_ppl'].append({'epoch': training_state['epoch'], 'dev_ppl': eval_ppl})
                     tb_writer.add_scalar('dev_ppl', eval_ppl, cur_epoch)
 
                 # save last checkpoint
@@ -279,15 +304,18 @@ def main():
                         os.makedirs(last_output_dir)
                     model_to_save = model.module if hasattr(model, 'module') else model
                     output_model_file = os.path.join(last_output_dir, "pytorch_model.bin")
-                    torch.save(model_to_save.state_dict(), output_model_file)
+                    output_optimizer_file = os.path.join(last_output_dir, "optimizer.pt")
+                    output_scheduler_file = os.path.join(last_output_dir, "scheduler.pt")
+                    save_checkpoint(training_state, optimizer, scheduler, model_to_save, output_model_file,
+                                    output_optimizer_file, output_scheduler_file, last_output_dir)
                     logger.info("Save the last model into %s", output_model_file)
 
-                if eval_ppl < best_ppl:
-                    not_loss_dec_cnt = 0
+                if eval_ppl < training_state['best_ppl']:
+                    training_state['not_loss_dec_cnt'] = 0
                     logger.info("  Best ppl:%s", eval_ppl)
                     logger.info("  " + "*" * 20)
                     fa.write("[%d] Best ppl changed into %.4f\n" % (cur_epoch, eval_ppl))
-                    best_ppl = eval_ppl
+                    training_state['best_ppl'] = eval_ppl
 
                     # Save best checkpoint for best ppl
                     output_dir = os.path.join(args.output_dir, 'checkpoint-best-ppl')
@@ -296,14 +324,17 @@ def main():
                     if args.always_save_model:
                         model_to_save = model.module if hasattr(model, 'module') else model
                         output_model_file = os.path.join(output_dir, "pytorch_model.bin")
-                        torch.save(model_to_save.state_dict(), output_model_file)
+                        output_optimizer_file = os.path.join(last_output_dir, "optimizer.pt")
+                        output_scheduler_file = os.path.join(last_output_dir, "scheduler.pt")
+                        save_checkpoint(training_state, optimizer, scheduler, model_to_save, output_model_file,
+                                        output_optimizer_file, output_scheduler_file, last_output_dir)
                         logger.info("Save the best ppl model into %s", output_model_file)
                 else:
-                    not_loss_dec_cnt += 1
-                    logger.info("Ppl does not decrease for %d epochs", not_loss_dec_cnt)
-                    if all([x > args.patience for x in [not_bleu_em_inc_cnt, not_loss_dec_cnt]]):
+                    training_state['not_loss_dec_cnt'] += 1
+                    logger.info("Ppl does not decrease for %d epochs", training_state['not_loss_dec_cnt'])
+                    if all([x > args.patience for x in [training_state['not_bleu_em_inc_cnt'], training_state['not_loss_dec_cnt']]]):
                         early_stop_str = "[%d] Early stop as not_bleu_em_inc_cnt=%d, and not_loss_dec_cnt=%d\n" % (
-                            cur_epoch, not_bleu_em_inc_cnt, not_loss_dec_cnt)
+                            cur_epoch, training_state['not_bleu_em_inc_cnt'], training_state['not_loss_dec_cnt'])
                         logger.info(early_stop_str)
                         fa.write(early_stop_str)
                         break
@@ -322,16 +353,17 @@ def main():
                     else:
                         dev_bleu_em = dev_bleu + dev_em
                     if args.data_num == -1:
+                        training_state['dev_bleu_em'].append({'epoch': training_state['epoch'], 'dev_bleu_em': dev_bleu_em})
                         tb_writer.add_scalar('dev_bleu_em', dev_bleu_em, cur_epoch)
                         # tb_writer.add_scalar('dev_em', dev_em, cur_epoch)
-                    if dev_bleu_em > best_bleu_em:
-                        not_bleu_em_inc_cnt = 0
+                    if dev_bleu_em > training_state['best_bleu_em']:
+                        training_state['not_bleu_em_inc_cnt'] = 0
                         logger.info("  [%d] Best bleu+em: %.2f (bleu: %.2f, em: %.2f)",
                                     cur_epoch, dev_bleu_em, dev_bleu, dev_em)
                         logger.info("  " + "*" * 20)
-                        best_bleu_em = dev_bleu_em
+                        training_state['best_bleu_em'] = dev_bleu_em
                         fa.write("[%d] Best bleu+em changed into %.2f (bleu: %.2f, em: %.2f)\n" % (
-                            cur_epoch, best_bleu_em, dev_bleu, dev_em))
+                            cur_epoch, training_state['best_bleu_em'], dev_bleu, dev_em))
                         # Save best checkpoint for best bleu
                         output_dir = os.path.join(args.output_dir, 'checkpoint-best-bleu')
                         if not os.path.exists(output_dir):
@@ -339,22 +371,26 @@ def main():
                         if args.data_num == -1 or args.always_save_model:
                             model_to_save = model.module if hasattr(model, 'module') else model
                             output_model_file = os.path.join(output_dir, "pytorch_model.bin")
-                            torch.save(model_to_save.state_dict(), output_model_file)
+                            output_optimizer_file = os.path.join(last_output_dir, "optimizer.pt")
+                            output_scheduler_file = os.path.join(last_output_dir, "scheduler.pt")
+                            save_checkpoint(training_state, optimizer, scheduler, model_to_save, output_model_file,
+                                            output_optimizer_file, output_scheduler_file, last_output_dir)
                             logger.info("Save the best bleu model into %s", output_model_file)
                     else:
-                        not_bleu_em_inc_cnt += 1
-                        logger.info("Bleu does not increase for %d epochs", not_bleu_em_inc_cnt)
+                        training_state['not_bleu_em_inc_cnt'] += 1
+                        logger.info("Bleu does not increase for %d epochs", training_state['not_bleu_em_inc_cnt'])
                         fa.write(
                             "[%d] Best bleu+em (%.2f) does not drop changed for %d epochs, cur bleu+em: %.2f (bleu: %.2f, em: %.2f)\n" % (
-                                cur_epoch, best_bleu_em, not_bleu_em_inc_cnt, dev_bleu_em, dev_bleu, dev_em))
-                        if all([x > args.patience for x in [not_bleu_em_inc_cnt, not_loss_dec_cnt]]):
+                                cur_epoch, training_state['best_bleu_em'], training_state['not_bleu_em_inc_cnt'], dev_bleu_em, dev_bleu, dev_em))
+                        if all([x > args.patience for x in [training_state['not_bleu_em_inc_cnt'], training_state['not_loss_dec_cnt']]]):
                             stop_early_str = "[%d] Early stop as not_bleu_em_inc_cnt=%d, and not_loss_dec_cnt=%d\n" % (
-                                cur_epoch, not_bleu_em_inc_cnt, not_loss_dec_cnt)
+                                cur_epoch, training_state['not_bleu_em_inc_cnt'], training_state['not_loss_dec_cnt'])
                             logger.info(stop_early_str)
                             fa.write(stop_early_str)
                             break
             logger.info("***** CUDA.empty_cache() *****")
             torch.cuda.empty_cache()
+            training_state['epoch'] += 1
 
         if args.local_rank in [-1, 0] and args.data_num == -1:
             tb_writer.close()
