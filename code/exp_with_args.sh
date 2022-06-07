@@ -88,7 +88,7 @@ elif [[ ${TASK} == 'defect' ]] && [[ ${MODEL_TYPE} == 'roberta' ||  ${MODEL_TYPE
   RUN_FN=${WORKDIR}/run_defect.py
   CONT_AUG='--cont '${17}
 else
-  RUN_FN=${WORKDIR}/run_gen.py
+  RUN_FN=${WORKDIR}/eval_bleu_debug.py
   CONT_AUG='--cont '${17}
 fi
 
