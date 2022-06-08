@@ -19,6 +19,7 @@ SUMMARY_DIR=${14}
 RES_FN=${15}
 LOAD_PATH=${16}
 GRADIENT_STEP=${17}
+EVAL_BS=${18}
 
 if [[ $DATA_NUM == -1 ]]; then
   DATA_TAG='all'
@@ -80,17 +81,17 @@ fi
 
 if [[ ${TASK} == 'multi_task' ]]; then
   RUN_FN=${WORKDIR}/run_multi_gen_cont.py
-  MULTI_TASK_AUG='--max_steps '${18}' --save_steps '${19}' --log_steps '${20}
-  CONT_AUG='--cont '${21}
+  MULTI_TASK_AUG='--max_steps '${19}' --save_steps '${20}' --log_steps '${21}
+  CONT_AUG='--cont '${22}
 elif [[ ${TASK} == 'clone' ]]; then
   RUN_FN=${WORKDIR}/run_clone_cont.py
-  CONT_AUG='--cont '${18}
+  CONT_AUG='--cont '${19}
 elif [[ ${TASK} == 'defect' ]] && [[ ${MODEL_TYPE} == 'roberta' ||  ${MODEL_TYPE} == 'bart' ]]; then
   RUN_FN=${WORKDIR}/run_defect_cont.py
-  CONT_AUG='--cont '${18}
+  CONT_AUG='--cont '${19}
 else
   RUN_FN=${WORKDIR}/run_gen_cont.py
-  CONT_AUG='--cont '${18}
+  CONT_AUG='--cont '${19}
 fi
 
 if [[ ${LOAD_PATH} != 'no' ]]; then
@@ -106,5 +107,5 @@ CUDA_VISIBLE_DEVICES=${GPU} \
   --tokenizer_name=${TOKENIZER}  --model_name_or_path=${MODEL_PATH} --data_dir ${DATADIR}  \
   --cache_path ${CACHE_DIR}  --output_dir ${OUTPUT_DIR}  --summary_dir ${SUMMARY_DIR} \
   --save_last_checkpoints --always_save_model --res_dir ${RES_DIR} --res_fn ${RES_FN} ${LOAD_ARG} \
-  --train_batch_size ${BS} --eval_batch_size ${BS} --max_source_length ${SRC_LEN} --max_target_length ${TRG_LEN} \
+  --train_batch_size ${BS} --eval_batch_size ${EVAL_BS} --max_source_length ${SRC_LEN} --max_target_length ${TRG_LEN} \
   2>&1 | tee ${LOG}

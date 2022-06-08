@@ -131,8 +131,8 @@ def main():
     # Build model
     config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
     config = config_class.from_pretrained(args.config_name if args.config_name else args.model_name_or_path)
-    model = model_class.from_pretrained(args.model_name_or_path)
-    tokenizer = tokenizer_class.from_pretrained(args.tokenizer_name)
+    model = model_class.from_pretrained(args.model_name_or_path, cache_dir='cache', local_files_only=True)
+    tokenizer = tokenizer_class.from_pretrained(args.tokenizer_name, cache_dir='cache', local_files_only=True)
 
     model = DefectModel(model, config, tokenizer, args)
     logger.info("Finish loading model [%s] from %s", get_model_size(model), args.model_name_or_path)

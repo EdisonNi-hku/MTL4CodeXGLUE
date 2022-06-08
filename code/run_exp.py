@@ -4,15 +4,17 @@ import argparse
 
 
 def get_cmd(task, sub_task, model_tag, gpu, data_num, bs, lr, source_length, target_length, patience, epoch, warmup,
-            model_dir, summary_dir, res_fn, load_path, cont, gradient_step, max_steps=None, save_steps=None, log_steps=None):
+            model_dir, summary_dir, res_fn, load_path, cont, gradient_step, eval_bs, max_steps=None, save_steps=None, log_steps=None):
+    if task != 'translate':
+        eval_bs = bs
     if max_steps is None:
-        cmd_str = 'bash code/exp_with_args.sh %s %s %s %s %d %d %d %d %d %d %d %d %s %s %s %s %d %d' % \
+        cmd_str = 'bash code/exp_with_args.sh %s %s %s %s %d %d %d %d %d %d %d %d %s %s %s %s %d %d %d' % \
                   (task, sub_task, model_tag, gpu, data_num, bs, lr, source_length, target_length, patience, epoch,
-                   warmup, model_dir, summary_dir, res_fn, load_path, gradient_step, cont)
+                   warmup, model_dir, summary_dir, res_fn, load_path, gradient_step, eval_bs, cont)
     else:
-        cmd_str = 'bash code/exp_with_args.sh %s %s %s %s %d %d %d %d %d %d %d %d %s %s %s %s %d %d %d %d %d' % \
+        cmd_str = 'bash code/exp_with_args.sh %s %s %s %s %d %d %d %d %d %d %d %d %s %s %s %s %d %d %d %d %d %d' % \
                   (task, sub_task, model_tag, gpu, data_num, bs, lr, source_length, target_length, patience, epoch,
-                   warmup, model_dir, summary_dir, res_fn, load_path, gradient_step, max_steps, save_steps, log_steps, cont)
+                   warmup, model_dir, summary_dir, res_fn, load_path, gradient_step, eval_bs, max_steps, save_steps, log_steps, cont)
     return cmd_str
 
 
@@ -104,7 +106,7 @@ def run_one_exp(args):
                       patience=patience, epoch=epoch, warmup=1000,
                       model_dir=args.model_dir, summary_dir=args.summary_dir, cont=args.cont,
                       res_fn='{}/{}_{}.txt'.format(args.res_dir, args.task, args.model_tag), gradient_step=args.gas,
-                      load_path=args.load_model_path)
+                      load_path=args.load_model_path, eval_bs=args.eval_bs)
     print('%s\n' % cmd_str)
     print('Gradient accumulate steps: ', args.gas)
     print('True batch size: ', bs * args.gas)
@@ -128,7 +130,7 @@ def run_multi_task_exp(args):
                       model_dir=args.model_dir, summary_dir=args.summary_dir,
                       res_fn='{}/multi_task_{}.txt'.format(args.res_dir, args.model_tag), cont=args.cont,
                       max_steps=max_steps, save_steps=save_steps, log_steps=log_steps, gradient_step=args.gas,
-                      load_path=args.load_model_path)
+                      load_path=args.load_model_path, eval_bs=args.eval_bs)
     print('%s\n' % cmd_str)
     print('Gradient accumulate steps: ', args.gas)
     print('True batch size: ', bs * args.gas)
@@ -162,6 +164,7 @@ if __name__ == '__main__':
     parser.add_argument("--cont", type=int, default=0, help='continue previous training or not')
     parser.add_argument("--gas", type=int, default=1, help='gradient accumulate steps')
     parser.add_argument("--load_model_path", type=str, default='no')
+    parser.add_argument("--eval_bs", type=int, default=8, help='evaluation batch size')
     args = parser.parse_args()
 
     if not os.path.exists(args.res_dir):
