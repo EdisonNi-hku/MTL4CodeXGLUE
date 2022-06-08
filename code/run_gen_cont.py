@@ -176,8 +176,8 @@ def main():
     set_dist(args)
     set_seed(args)
     config, model, tokenizer = build_or_load_gen_model(args)
-    if args.cont != 0 and args.load_model_path is not None:
-        model_file = os.path.join(args.load_model_path, "pytorch_model.bin")
+    if args.cont_model_path is not None:
+        model_file = os.path.join(args.cont_model_path, "pytorch_model.bin")
         model.load_state_dict(torch.load(model_file))
     model.to(args.device)
     if args.n_gpu > 1:
@@ -211,9 +211,9 @@ def main():
                                                     num_warmup_steps=args.warmup_steps,
                                                     num_training_steps=num_train_optimization_steps)
 
-        if args.cont != 0 and args.load_model_path is not None:
-            optimizer_state = torch.load(os.path.join(args.load_model_path, 'optimizer.pt'), map_location="cpu")
-            scheduler_state = torch.load(os.path.join(args.load_model_path, 'scheduler.pt'), map_location="cpu")
+        if args.cont_model_path is not None:
+            optimizer_state = torch.load(os.path.join(args.cont_model_path, 'optimizer.pt'), map_location="cpu")
+            scheduler_state = torch.load(os.path.join(args.cont_model_path, 'scheduler.pt'), map_location="cpu")
             optimizer.load_state_dict(optimizer_state)
             scheduler.load_state_dict(scheduler_state)
 
@@ -226,8 +226,8 @@ def main():
         logger.info("  Num epoch = %d", args.num_train_epochs)
 
         dev_dataset = {}
-        if args.cont != 0 and args.load_model_path is not None:
-            with open(os.path.join(args.load_model_path, "training_state.json"), 'r') as f:
+        if args.cont_model_path is not None:
+            with open(os.path.join(args.cont_model_path, "training_state.json"), 'r') as f:
                 training_state = json.load(f)
         else:
             training_state = {}
