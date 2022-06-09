@@ -90,7 +90,7 @@ def get_args_by_task_model(task, sub_task, model_tag):
             if model_tag in ['codebert', 'roberta']:
                 bs = 16
             else:
-                bs = 10
+                bs = 12
     lr = 5
     if task == 'concode':
         lr = 10
