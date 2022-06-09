@@ -1,6 +1,7 @@
 # MTL4CodeXGLUE
 Multi-task Learning for CodeXGLUE Benchmark
 
+The experiment scripts are adapted from: https://github.com/salesforce/CodeT5. The original scripts does not support resuming training & multi-gpu fine-tuning.
 Environment preparation
 ```shell
 git clone https://github.com/EdisonNi-hku/MTL4CodeXGLUE
@@ -18,75 +19,32 @@ cd MTL4CodeXGLUE
 gsutil -m cp -r "gs://sfr-codet5-data-research/data" .
 ```
 
-Run the baselines: roughly 40GB GPU memory is required(4 * GPUs with 10GB memory is enough).
+Pretrained model preparation: download the pretrained models to ./cache
+```shell
+python code/model_cache.py
+```
+
+Run the baselines: roughly 40GB GPU memory is required.
 ```shell
 # Change the ${WORKDIR} and ${DATADIR} to the corresponding path
 vim code/exp_with_args.sh
 
 # Run the experiments
+# The multi-task scripts takes around 5 days on a single V100 GPU(32GB)
 # CodeT5
-python code/run_exp.py --model_tag codet5_base --task summarize --sub_task python
-python code/run_exp.py --model_tag codet5_base --task summarize --sub_task java
-python code/run_exp.py --model_tag codet5_base --task summarize --sub_task php
-python code/run_exp.py --model_tag codet5_base --task summarize --sub_task ruby
-python code/run_exp.py --model_tag codet5_base --task summarize --sub_task javascript
-python code/run_exp.py --model_tag codet5_base --task summarize --sub_task go
-
-python code/run_exp.py --model_tag codet5_base --task concode --sub_task none
-
-python code/run_exp.py --model_tag codet5_base --task translate --sub_task java-cs
-python code/run_exp.py --model_tag codet5_base --task translate --sub_task cs-java
-
-python code/run_exp.py --model_tag codet5_base --task refine --sub_task small
-python code/run_exp.py --model_tag codet5_base --task refine --sub_task medium
-
-python code/run_exp.py --model_tag codet5_base --task defect --sub_task none
-
-python code/run_exp.py --model_tag codet5_base --task clone --sub_task none
-
-python code/run_exp.py --model_tag codet5_base --task multi_task --sub_task none
+python code/run_exp.py --model_tag codet5_base --task multi_task --sub_task none --gpu xxx --gas xxx
+# Use --gas to specify gradient accumulate steps: e.g. --gas 2, --gas 4 ...
+# Use --gpu to specify gpu indices: e.g. --gas 0,1,2,3 for using the first 4 GPUs to run the experiment
+python code/run_exp.py --model_tag codet5_base --task refine --sub_task medium --gpu xxx --gas xxx
+python code/run_exp.py --model_tag codet5_base --task refine --sub_task small --gpu xxx --gas xxx
 
 # T5
-python code/run_exp.py --model_tag t5_base --task summarize --sub_task python
-python code/run_exp.py --model_tag t5_base --task summarize --sub_task java
-python code/run_exp.py --model_tag t5_base --task summarize --sub_task php
-python code/run_exp.py --model_tag t5_base --task summarize --sub_task ruby
-python code/run_exp.py --model_tag t5_base --task summarize --sub_task javascript
-python code/run_exp.py --model_tag t5_base --task summarize --sub_task go
-
-python code/run_exp.py --model_tag t5_base --task concode --sub_task none
-
-python code/run_exp.py --model_tag t5_base --task translate --sub_task java-cs
-python code/run_exp.py --model_tag t5_base --task translate --sub_task cs-java
-
-python code/run_exp.py --model_tag t5_base --task refine --sub_task small
-python code/run_exp.py --model_tag t5_base --task refine --sub_task medium
-
-python code/run_exp.py --model_tag t5_base --task defect --sub_task none
-
-python code/run_exp.py --model_tag t5_base --task clone --sub_task none
-
-python code/run_exp.py --model_tag t5_base --task multi_task --sub_task none
+python code/run_exp.py --model_tag t5_base --task multi_task --sub_task none --gpu xxx --gas xxx
+python code/run_exp.py --model_tag t5_base --task refine --sub_task medium --gpu xxx --gas xxx
+python code/run_exp.py --model_tag t5_base --task refine --sub_task small --gpu xxx --gas xxx
 
 # CoTexT
-python code/run_exp.py --model_tag cotext --task summarize --sub_task python
-python code/run_exp.py --model_tag cotext --task summarize --sub_task java
-python code/run_exp.py --model_tag cotext --task summarize --sub_task php
-python code/run_exp.py --model_tag cotext --task summarize --sub_task ruby
-python code/run_exp.py --model_tag cotext --task summarize --sub_task javascript
-python code/run_exp.py --model_tag cotext --task summarize --sub_task go
-
-python code/run_exp.py --model_tag cotext --task concode --sub_task none
-
-python code/run_exp.py --model_tag cotext --task translate --sub_task java-cs
-python code/run_exp.py --model_tag cotext --task translate --sub_task cs-java
-
-python code/run_exp.py --model_tag cotext --task refine --sub_task small
-python code/run_exp.py --model_tag cotext --task refine --sub_task medium
-
-python code/run_exp.py --model_tag cotext --task defect --sub_task none
-
-python code/run_exp.py --model_tag cotext --task clone --sub_task none
-
-python code/run_exp.py --model_tag cotext --task multi_task --sub_task none
+python code/run_exp.py --model_tag cotext --task multi_task --sub_task none --gpu xxx --gas xxx
+python code/run_exp.py --model_tag cotext --task refine --sub_task medium --gpu xxx --gas xxx
+python code/run_exp.py --model_tag cotext --task refine --sub_task small --gpu xxx --gas xxx
 ```
