@@ -7,6 +7,8 @@ def get_cmd(task, sub_task, model_tag, gpu, data_num, bs, lr, source_length, tar
             model_dir, summary_dir, res_fn, load_path, gradient_step, eval_bs, max_steps=None, save_steps=None, log_steps=None):
     if task != 'translate':
         eval_bs = bs
+    if task == 'clone':
+        eval_bs = bs / 2
     if max_steps is None:
         cmd_str = 'bash code/exp_with_args.sh %s %s %s %s %d %d %d %d %d %d %d %d %s %s %s %s %d %d' % \
                   (task, sub_task, model_tag, gpu, data_num, bs, lr, source_length, target_length, patience, epoch,
