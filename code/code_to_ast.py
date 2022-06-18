@@ -1,10 +1,25 @@
 from tree_sitter import Language, Parser
 import os
 import json
+import random
+import math
 from collections import OrderedDict
 from utils import get_filenames
 from evaluator.CodeBLEU.parser import remove_comments_and_docstrings
 root_dir = os.path.dirname(__file__)
+
+
+def load_code(data_root, task, subtask):
+    if task == 'summarize':
+        return load_summarization_code(data_root, subtask)
+    elif task == 'translate':
+        return load_translation_code(data_root, subtask)
+    elif task == 'refine':
+        return load_refine_code(data_root, subtask)
+    elif task == 'defect':
+        return load_defect_code(data_root, subtask)
+    else:
+        return load_clone_code(data_root, subtask)
 
 
 def load_summarization_code(data_root, subtask):
@@ -12,6 +27,8 @@ def load_summarization_code(data_root, subtask):
     code_strings = []
     with open(filename, encoding='utf-8') as f:
         for idx, line in enumerate(f):
+            if idx >= 1:
+                break
             line = line.strip()
             js = json.loads(line)
             original_code = js['code']
@@ -76,7 +93,7 @@ def load_defect_code(data_root, subtask):
             js = json.loads(line)
             code = js['func']
             try:
-                code = remove_comments_and_docstrings(code, 'c++')
+                code = remove_comments_and_docstrings(code, 'c')
             except:
                 pass
             code_strings.append(code)
@@ -122,10 +139,10 @@ def find_identifiers(code, code_lines, node):
     identifiers = []
     if node.type == 'identifier':
         assert node.start_point[0] == node.end_point[0]
-        start = sum([len(code_lines[i]) + 1 for i in range(node.start_point[0] - 1)]) + node.start_point[1]
-        end = sum([len(code_lines[i]) + 1 for i in range(node.end_point[0] - 1)]) + node.end_point[1]
+        start = sum([len(code_lines[i]) + 1 for i in range(node.start_point[0])]) + node.start_point[1]
+        end = sum([len(code_lines[i]) + 1 for i in range(node.end_point[0])]) + node.end_point[1]
         name = code[start:end]
-        identifiers.append((name, start, end))
+        identifiers.append([name, start, end])
         return identifiers
     elif len(node.children) == 0:
         return identifiers
@@ -140,6 +157,9 @@ def mask_identifiers(code_string, parser):
     code_lines = code_string.split('\n')
     root_node = tree.root_node
     identifiers = find_identifiers(code_string, code_lines, root_node)
+    names = set([t[0] for t in identifiers])
+    to_mask = random.sample(names, math.ceil(0.3 * len(names)))
+    identifiers = [t for t in identifiers if t[0] in to_mask]
     identifiers = sorted(identifiers, key=lambda t: t[1])
     replace_dict = OrderedDict()
     idx = 0
@@ -147,26 +167,45 @@ def mask_identifiers(code_string, parser):
         if t[0] in replace_dict.keys():
             replace_dict[t[0]]['count'] += 1
         else:
-            replace_dict[t[0]] = {'new_name': "<extra_id_" + str(idx) + ">", 'count': 1}
+            replace_dict[t[0]] = {'new_name': "<extra_id_" + str(idx) + ">", 'count': 1, 'len_diff': len("<extra_id_" + str(idx) + ">") - len(t[0])}
             idx += 1
+
+    for i in range(len(identifiers)):
+        code_string = code_string[:identifiers[i][1]] + replace_dict[identifiers[i][0]]['new_name'] + code_string[identifiers[i][2]:]
+        for j in range(i + 1, len(identifiers)):
+            identifiers[j][1] += replace_dict[identifiers[i][0]]['len_diff']
+            identifiers[j][2] += replace_dict[identifiers[i][0]]['len_diff']
 
     tgt_string = ""
     for k, v in replace_dict.items():
-        code_string = code_string.replace(k, v['new_name'], v['count'])
         tgt_string += v['new_name'] + ' ' + k + ' '
 
     return code_string, tgt_string.strip()
 
 
+def get_parser(lang_dir, lang):
+    lang = Language(lang_dir, lang)
+    parser = Parser().set_language(lang)
+    return parser
+
+
 if __name__ == '__main__':
-    PYTHON = Language(root_dir + '/evaluator/CodeBLEU/parser/my-languages.so', 'python')
-    python_parser = Parser()
-    python_parser.set_language(PYTHON)
-    JAVA = Language(root_dir + '/evaluator/CodeBLEU/parser/my-languages.so', 'java')
-    java_parser = Parser()
-    java_parser.set_language(JAVA)
-    python_code = load_summarization_code('data', 'python')
-    java_code = load_summarization_code('data', 'java')
-    print(code_to_ast_string(python_code[0], python_parser))
+    languages = ['python', 'java', 'php', 'c', 'c_sharp', 'javascript', 'php', 'ruby']
+    lang_dir = root_dir + '/evaluator/CodeBLEU/parser/my-languages.so'
+    parsers = {}
+    for lang in languages:
+        parsers[lang] = get_parser(lang_dir, lang)
+
+
+    # python_code = load_summarization_code('data', 'python')
+    # java_code = load_summarization_code('data', 'java')
+    # print(python_code[0])
+    # print(code_to_ast_string(python_code[0], python_parser))
+    # #print(mask_identifiers(java_code[0], java_parser))
+    # masked_string, tgt = mask_identifiers(java_code[0], java_parser)
+    # print(java_code[0])
+    # print(masked_string)
+    # print(tgt)
+
 
 
