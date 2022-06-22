@@ -407,8 +407,8 @@ def code2df(code_dict):
 
 
 if __name__ == '__main__':
-    codet5_tokenizer = RobertaTokenizer.from_pretrained('Salesforce/codet5-base', cache_dir='cache')
-    t5_tokenizer = T5Tokenizer.from_pretrained('t5-base', cache_dir='cache')
+    codet5_tokenizer = RobertaTokenizer.from_pretrained('Salesforce/codet5-base', cache_dir='cache', local_files_only=True)
+    t5_tokenizer = T5Tokenizer.from_pretrained('t5-base', cache_dir='cache', local_files_only=True)
     random.seed(1234)
     cache_fn = root_dir + '/code_cache'
     if os.path.exists(cache_fn):
