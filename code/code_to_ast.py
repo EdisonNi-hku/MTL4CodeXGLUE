@@ -393,7 +393,7 @@ def code2df(code_dict):
         filter_df = []
         for i in range(len(t5_code_count)):
             if t5_df_count[i] <= 500 and t5_code_count[i] <= 500 and \
-                    codet5_df_count[i] <= 500 and codet5_code_items[i] <= 500:
+                    codet5_df_count[i] <= 500 and codet5_code_count[i] < 500:
                 filter_code.append(code_list[i])
                 filter_df.append(df_list[i])
         with open('df/' + '{}_{}'.format(task, subtask) + '.code.filter', 'w') as f1, open(
