@@ -382,13 +382,25 @@ def code2df(code_dict):
         t5_code_count = pool.map(count_tokens, tqdm(t5_code_items, total=len(t5_code_items), desc='t5 code'))
         codet5_code_count = pool.map(count_tokens,
                                      tqdm(codet5_code_items, total=len(codet5_code_items), desc='codet5 code'))
-        t5_df_count = pool.map(count_tokens, tqdm(t5_df_items, total=len(t5_df_items), desc='t5 ast'))
+        t5_df_count = pool.map(count_tokens, tqdm(t5_df_items, total=len(t5_df_items), desc='t5 dataflow'))
         codet5_df_count = pool.map(count_tokens,
-                                    tqdm(codet5_df_items, total=len(codet5_df_items), desc='codet5 ast'))
+                                    tqdm(codet5_df_items, total=len(codet5_df_items), desc='codet5 dataflow'))
         count[k] = (sum(t5_code_count) / len(t5_code_count),
                     sum(codet5_code_count) / len(codet5_code_count),
                     sum(t5_df_count) / len(t5_df_count),
                     sum(codet5_df_count) / len(codet5_df_count))
+        filter_code = []
+        filter_df = []
+        for i in range(len(t5_code_count)):
+            if t5_df_count[i] <= 500 and t5_code_count[i] <= 500 and \
+                    codet5_df_count[i] <= 500 and codet5_code_items[i] <= 500:
+                filter_code.append(code_list[i])
+                filter_df.append(df_list[i])
+        with open('df/' + '{}_{}'.format(task, subtask) + '.code.filter', 'w') as f1, open(
+                'df/' + '{}_{}'.format(task, subtask) + '.df.filter', 'w') as f2:
+            f1.writelines(filter_code)
+            f2.writelines(filter_df)
+
     print(count)
     torch.save(count, 'token_count_df')
     pool.close()
@@ -415,7 +427,7 @@ if __name__ == '__main__':
                 subtasks = ['none']
             for sub in subtasks:
                 code = load_code(data_root='data', task=cur_task, subtask=sub)
-                code = random.sample(code, math.ceil(0.1 * len(code)))
+                # code = random.sample(code, math.ceil(0.1 * len(code)))
                 code_dict['{}_{}'.format(cur_task, sub)] = code
 
         torch.save(code_dict, cache_fn)
