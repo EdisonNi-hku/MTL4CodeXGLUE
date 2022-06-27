@@ -8,8 +8,43 @@ import time
 import json
 from tqdm import tqdm
 from _utils import *
+from code_to_ast import mask_identifiers
 
 logger = logging.getLogger(__name__)
+
+
+class PlainCodeDataset(torch.utils.data.Dataset):
+    def __init__(self, codes):
+        self.codes = codes
+
+    def __getitem__(self, idx):
+        return self.codes[idx]
+
+    def __len__(self):
+        return len(self.codes)
+
+
+def get_src_lang_from_task(args):
+    if args.task == 'summarize':
+        return args.subtask
+    elif args.task == 'defect':
+        return 'c'
+    elif args.task == 'translate' and args.subtask == 'cs-java':
+        return 'c_sharp'
+    else:
+        return 'java'
+
+
+def identifier_collator(batch, args, pool, tokenizer, percentage=0.3):
+    lang = get_src_lang_from_task(args)
+    codes = [item[0] for item in batch]
+    items = [(code, lang, percentage) for code in codes]
+    masked_codes = pool.map(mask_identifiers, items)
+    items = [(code, masked_code, idx, tokenizer, args) for idx, (code, masked_code) in enumerate(zip(codes, masked_codes))]
+    features = pool.map(convert_src_tgt_to_features, items)
+    source_ids = torch.tensor([f.source_ids for f in features], dtype=torch.long)
+    target_ids = torch.tensor([f.target_ids for f in features], dtype=torch.long)
+    return source_ids, target_ids
 
 
 def load_and_cache_gen_data(args, filename, pool, tokenizer, split_tag, only_src=False, is_sample=False):
@@ -206,6 +241,16 @@ def get_filenames(data_root, task, sub_task, split=''):
         train_fn = '{}/train.jsonl'.format(data_dir)
         dev_fn = '{}/valid.jsonl'.format(data_dir)
         test_fn = '{}/test.jsonl'.format(data_dir)
+    elif task == 'dataflow':
+        data_dir = '{}/{}/{}'.format(data_root, task, sub_task)
+        train_fn = '{}/train.jsonl'.format(data_dir)
+        dev_fn = ''
+        test_fn = ''
+    elif task == 'identifier':
+        data_dir = '{}/dataflow/{}'.format(data_root, task, sub_task)
+        train_fn = '{}/train.jsonl'.format(data_dir)
+        dev_fn = ''
+        test_fn = ''
     if split == 'train':
         return train_fn
     elif split == 'dev':
@@ -224,6 +269,7 @@ def read_examples(filename, data_num, task):
         'concode': read_concode_examples,
         'clone': read_clone_examples,
         'defect': read_defect_examples,
+        'dataflow': read_dataflow_examples,
     }
     return read_example_dict[task](filename, data_num)
 

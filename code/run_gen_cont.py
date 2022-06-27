@@ -38,7 +38,8 @@ from models import build_or_load_gen_model
 from evaluator import smooth_bleu
 from evaluator.CodeBLEU import calc_code_bleu
 from evaluator.bleu import _bleu
-from utils import get_filenames, get_elapse_time, load_and_cache_gen_data, save_checkpoint
+from utils import get_filenames, get_elapse_time, load_and_cache_gen_data, save_checkpoint, PlainCodeDataset,\
+    identifier_collator, get_src_lang_from_task
 from configs import add_args, set_seed, set_dist
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
@@ -195,8 +196,15 @@ def main():
         # Prepare training data loader
         train_examples, train_data = load_and_cache_gen_data(args, args.train_filename, pool, tokenizer, 'train')
         train_sampler = RandomSampler(train_data) if args.local_rank == -1 else DistributedSampler(train_data)
-        train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size,
-                                      num_workers=4, pin_memory=True)
+        if args.task == 'identifier':
+            codes = [example.source for example in train_examples]
+            train_data = PlainCodeDataset(codes)
+            train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size,
+                                          collate_fn=lambda b: identifier_collator(b, args, pool, tokenizer),
+                                          num_workers=4, pin_memory=True)
+        else:
+            train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size,
+                                          num_workers=4, pin_memory=True)
 
         # Prepare optimizer and schedule (linear warmup and decay)
         no_decay = ['bias', 'LayerNorm.weight']
@@ -280,7 +288,7 @@ def main():
                     train_loss = round(training_state['tr_loss'] * args.gradient_accumulation_steps / (nb_tr_steps + 1), 4)
                     bar.set_description("[{}] Train loss {}".format(cur_epoch, round(train_loss, 3)))
 
-            if args.do_eval:
+            if args.do_eval and args.task not in ['dataflow', 'identifier']:
                 # Eval model with dev dataset
                 if 'dev_loss' in dev_dataset:
                     eval_examples, eval_data = dev_dataset['dev_loss']
@@ -396,7 +404,7 @@ def main():
             tb_writer.close()
         logger.info("Finish training and take %s", get_elapse_time(t0))
 
-    if args.do_test:
+    if args.do_test and args.task not in ['dataflow', 'identifier']:
         logger.info("  " + "***** Testing *****")
         logger.info("  Batch size = %d", args.eval_batch_size)
 

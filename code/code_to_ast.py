@@ -28,7 +28,9 @@ dfg_function = {
 root_dir = os.path.dirname(__file__)
 
 
-def get_data_flow(code, parser):
+def get_data_flow(code, parser, lang):
+    if lang == "php":
+        code = "<?php" + code + "?>"
     try:
         tree = parser[0].parse(bytes(code, 'utf8'))
         root_node = tree.root_node
@@ -64,12 +66,12 @@ def get_data_flow(code, parser):
         if d[1] not in dic:
             dic[d[1]] = d
         else:
-            dic[d[1]] = (d[0], d[1], d[2], list(set(dic[d[1]][3] + d[3])), list(set(dic[d[1]][4] + d[4])))
+            dic[d[1]] = (d[0], d[1], d[2], list(set(dic[d[1]][3] + d[3])), sorted(list(set(dic[d[1]][4] + d[4]))))
     DFG = []
     for d in dic:
         DFG.append(dic[d])
     dfg = DFG
-    return dfg, code_tokens
+    return dfg, codes
 
 
 def load_code(data_root, task, subtask):
@@ -186,13 +188,14 @@ def find_identifiers(code, code_lines, node):
         return identifiers
 
 
-def mask_identifiers(code_string, parser):
+def mask_identifiers(code_string, lang, percentage=0.3):
+    parser = PARSERS[lang][0]
     tree = parser.parse(bytes(code_string, "utf8"))
     code_lines = code_string.split('\n')
     root_node = tree.root_node
     identifiers = find_identifiers(code_string, code_lines, root_node)
     names = set([t[0] for t in identifiers])
-    to_mask = random.sample(names, math.ceil(0.3 * len(names)))
+    to_mask = random.sample(names, math.ceil(percentage * len(names)))
     identifiers = [t for t in identifiers if t[0] in to_mask]
     identifiers = sorted(identifiers, key=lambda t: t[1])
     replace_dict = OrderedDict()
@@ -224,7 +227,7 @@ def get_parser(lang_dir, lang):
     return parser
 
 
-LANGUAGES = ['python', 'java', 'php', 'c_sharp', 'javascript', 'php', 'ruby', 'go']
+LANGUAGES = ['python', 'java', 'c_sharp', 'javascript', 'php', 'ruby', 'go']
 LANG_DIR = root_dir + '/evaluator/CodeBLEU/parser/my-languages.so'
 PARSERS = {}
 for lang in LANGUAGES:
@@ -268,7 +271,7 @@ def is_constant(element) -> bool:
 def code_to_dataflow_string(item):
     code_string, lang = item
     parser = PARSERS[lang]
-    dfg, code_tokens = get_data_flow(code_string, parser)
+    dfg, code_tokens = get_data_flow(code_string, parser, lang)
     var_order = {}
     id2var = {}
     for t in dfg:
@@ -371,10 +374,11 @@ def code2df(code_dict):
             lang = 'java'
         items = [(code, lang) for code in code_list]
         df_list = pool.map(code_to_dataflow_string, tqdm(items, total=len(items), desc='parsing ' + task + '_' + subtask))
-        with open('df/' + '{}_{}'.format(task, subtask) + '.code', 'w') as f1, open(
-                'df/' + '{}_{}'.format(task, subtask) + '.df', 'w') as f2:
-            f1.writelines(code_list)
-            f2.writelines(df_list)
+        all_data = [{'code': code, 'dataflow': df} for code, df in zip(code_list, df_list)]
+        with open('df/' + '{}_{}'.format(task, subtask) + '.jsonl', 'w') as f:
+            for d in all_data:
+                json.dump(d, f)
+                f.write('\n')
         t5_df_items = [(df, t5_tokenizer) for df in df_list]
         codet5_df_items = [(df, codet5_tokenizer) for df in df_list]
         t5_code_items = [(code, t5_tokenizer) for code in code_list]
@@ -396,10 +400,11 @@ def code2df(code_dict):
                     codet5_df_count[i] <= 500 and codet5_code_count[i] < 500:
                 filter_code.append(code_list[i])
                 filter_df.append(df_list[i])
-        with open('df/' + '{}_{}'.format(task, subtask) + '.code.filter', 'w') as f1, open(
-                'df/' + '{}_{}'.format(task, subtask) + '.df.filter', 'w') as f2:
-            f1.writelines(filter_code)
-            f2.writelines(filter_df)
+        filtered_data = [{'code': code, 'dataflow': df} for code, df in zip(filter_code, filter_df)]
+        with open('df/' + '{}_{}'.format(task, subtask) + '.filtered.jsonl', 'w') as f:
+            for d in filtered_data:
+                json.dump(d, f)
+                f.write('\n')
 
     print(count)
     torch.save(count, 'token_count_df')

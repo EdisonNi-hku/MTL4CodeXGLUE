@@ -39,6 +39,11 @@ def get_args_by_task_model(task, sub_task, model_tag):
         trg_len = 128
         epoch = 15
         patience = 2
+    elif task in ['dataflow', 'identifier']:
+        src_len = -1
+        trg_len = -1
+        epoch = 15
+        patience = 2
     elif task == 'refine':
         # small: Read 46680 examples, avg src len: 31, avg trg len: 28, max src len: 50, max trg len: 50
         # [TOKENIZE] avg src len: 50, avg trg len: 45, max src len: 129, max trg len: 121
@@ -142,11 +147,13 @@ def run_multi_task_exp(args):
 def get_sub_tasks(task):
     if task == 'summarize':
         sub_tasks = ['ruby', 'javascript', 'go', 'python', 'java', 'php']
+    elif task in ['dataflow', 'identifier']:
+        sub_tasks = ['ruby', 'javascript', 'go', 'python', 'java', 'php', 'c_sharp']
     elif task == 'translate':
         sub_tasks = ['java-cs', 'cs-java']
     elif task == 'refine':
         sub_tasks = ['small', 'medium']
-    elif task in ['concode', 'defect', 'clone', 'multi_task']:
+    elif task in ['concode', 'defect', 'clone', 'multi_task', 'multi_auxiliary']:
         sub_tasks = ['none']
     return sub_tasks
 
@@ -156,7 +163,8 @@ if __name__ == '__main__':
     parser.add_argument("--model_tag", type=str, default='codet5_base',
                         choices=['roberta', 'codebert', 'bart_base', 'codet5_small', 'codet5_base', 'cotext', 't5_base'])
     parser.add_argument("--task", type=str, default='summarize', choices=['summarize', 'concode', 'translate',
-                                                                          'refine', 'defect', 'clone', 'multi_task'])
+                                                                          'refine', 'defect', 'clone', 'multi_task',
+                                                                          'dataflow', 'identifier', 'multi_auxiliary'])
     parser.add_argument("--sub_task", type=str, default='ruby')
     parser.add_argument("--res_dir", type=str, default='results', help='directory to save fine-tuning results')
     parser.add_argument("--model_dir", type=str, default='saved_models', help='directory to save fine-tuned models')
