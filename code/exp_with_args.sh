@@ -28,10 +28,11 @@ else
   EPOCH=1
 fi
 
+EFF_BS=$((${BS}*${GRADIENT_STEP}))
 if [[ ${TASK} == 'multi_task' ]]; then
   FULL_MODEL_TAG=${MODEL_TAG}_${DATA_TAG}_lr${LR}_s${19}
 else
-  FULL_MODEL_TAG=${MODEL_TAG}_${DATA_TAG}_lr${LR}_bs${BS}_src${SRC_LEN}_trg${TRG_LEN}_pat${PATIENCE}_e${EPOCH}
+  FULL_MODEL_TAG=${MODEL_TAG}_${DATA_TAG}_lr${LR}_bs${EFF_BS}_src${SRC_LEN}_trg${TRG_LEN}_pat${PATIENCE}_e${EPOCH}
 fi
 
 
