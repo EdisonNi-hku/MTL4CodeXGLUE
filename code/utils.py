@@ -233,7 +233,7 @@ def get_filenames(data_root, task, sub_task, split=''):
         dev_fn = ''
         test_fn = ''
     elif task == 'identifier':
-        data_dir = '{}/dataflow/{}'.format(data_root, task, sub_task)
+        data_dir = '{}/{}/{}'.format(data_root, task, sub_task)
         train_fn = '{}/train.jsonl'.format(data_dir)
         dev_fn = ''
         test_fn = ''
