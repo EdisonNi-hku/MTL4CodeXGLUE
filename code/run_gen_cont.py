@@ -38,8 +38,8 @@ from models import build_or_load_gen_model
 from evaluator import smooth_bleu
 from evaluator.CodeBLEU import calc_code_bleu
 from evaluator.bleu import _bleu
-from utils import get_filenames, get_elapse_time, load_and_cache_gen_data, save_checkpoint, PlainCodeDataset,\
-    identifier_collator, get_src_lang_from_task
+from utils import get_filenames, get_elapse_time, load_and_cache_gen_data, save_checkpoint, PlainCodeDataset
+from code_to_ast import identifier_collator
 from configs import add_args, set_seed, set_dist
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',

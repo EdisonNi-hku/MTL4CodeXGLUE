@@ -7,7 +7,7 @@ import torch
 import multiprocessing
 from transformers import RobertaTokenizer, T5Tokenizer
 from collections import OrderedDict
-from utils import get_filenames
+from utils import get_filenames, get_src_lang_from_task, convert_src_tgt_to_features
 from tqdm import tqdm
 from evaluator.CodeBLEU.parser import DFG_python, DFG_java, DFG_ruby, DFG_go, DFG_php, DFG_javascript, DFG_csharp
 from evaluator.CodeBLEU.parser import (remove_comments_and_docstrings,
@@ -218,6 +218,18 @@ def mask_identifiers(code_string, lang, percentage=0.3):
         tgt_string += v['new_name'] + ' ' + k + ' '
 
     return code_string, tgt_string.strip()
+
+
+def identifier_collator(batch, args, pool, tokenizer, percentage=0.3):
+    lang = get_src_lang_from_task(args)
+    codes = [item[0] for item in batch]
+    items = [(code, lang, percentage) for code in codes]
+    masked_codes = pool.map(mask_identifiers, items)
+    items = [(code, masked_code, idx, tokenizer, args) for idx, (code, masked_code) in enumerate(zip(codes, masked_codes))]
+    features = pool.map(convert_src_tgt_to_features, items)
+    source_ids = torch.tensor([f.source_ids for f in features], dtype=torch.long)
+    target_ids = torch.tensor([f.target_ids for f in features], dtype=torch.long)
+    return source_ids, target_ids
 
 
 def get_parser(lang_dir, lang):
