@@ -40,8 +40,8 @@ def get_args_by_task_model(task, sub_task, model_tag):
         epoch = 15
         patience = 2
     elif task in ['dataflow', 'identifier']:
-        src_len = -1
-        trg_len = -1
+        src_len = 512
+        trg_len = 512
         epoch = 15
         patience = 2
     elif task == 'refine':
