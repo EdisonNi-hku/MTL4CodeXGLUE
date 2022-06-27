@@ -256,6 +256,7 @@ def read_examples(filename, data_num, task):
         'clone': read_clone_examples,
         'defect': read_defect_examples,
         'dataflow': read_dataflow_examples,
+        'identifier': read_dataflow_examples,
     }
     return read_example_dict[task](filename, data_num)
 
