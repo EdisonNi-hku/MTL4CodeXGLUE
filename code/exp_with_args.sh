@@ -87,6 +87,8 @@ elif [[ ${TASK} == 'clone' ]]; then
   RUN_FN=${WORKDIR}/run_clone_cont.py
 elif [[ ${TASK} == 'defect' ]] && [[ ${MODEL_TYPE} == 'roberta' ||  ${MODEL_TYPE} == 'bart' ]]; then
   RUN_FN=${WORKDIR}/run_defect_cont.py
+elif [[ ${TASK} == 'multi_auxiliary' ]]; then
+  RUN_FN=${WORKDIR}/run_multi_gen_aux.py
 else
   RUN_FN=${WORKDIR}/run_gen_cont.py
 fi
