@@ -220,13 +220,19 @@ def mask_identifiers(code_string, lang, percentage=0.3):
     return code_string, tgt_string.strip()
 
 
-def identifier_collator(batch, args, pool, tokenizer, percentage=0.3):
+def identifier_collator(batch, args, tokenizer, percentage=0.3):
     lang = get_src_lang_from_task(args)
     codes = [item[0] for item in batch]
-    items = [(code, lang, percentage) for code in codes]
-    masked_codes = pool.map(mask_identifiers, items)
-    items = [(code, masked_code, idx, tokenizer, args) for idx, (code, masked_code) in enumerate(zip(codes, masked_codes))]
-    features = pool.map(convert_src_tgt_to_features, items)
+    masked_codes = []
+    targets = []
+    for code in codes:
+        masked_code, tgt = mask_identifiers(code, lang, percentage)
+        masked_codes.append(masked_code)
+        targets.append(tgt)
+    items = [(masked_code, tgt, idx, tokenizer, args) for idx, (masked_code, tgt) in enumerate(zip(masked_codes, targets))]
+    features = []
+    for item in items:
+        features.append(convert_src_tgt_to_features(item))
     source_ids = torch.tensor([f.source_ids for f in features], dtype=torch.long)
     target_ids = torch.tensor([f.target_ids for f in features], dtype=torch.long)
     return source_ids, target_ids

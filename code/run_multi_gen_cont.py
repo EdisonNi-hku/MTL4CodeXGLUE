@@ -70,7 +70,7 @@ def get_max_trg_len_by_task(task, sub_task):
     return max_target_length
 
 
-def get_bs(cur_task, model_tag):
+def get_bs(cur_task, model_tag, gas):
     task = cur_task.split('_')[0]
     sub_task = cur_task.split('_')[-1]
     if 'codet5_small' in model_tag:
@@ -84,6 +84,7 @@ def get_bs(cur_task, model_tag):
             bs = 24
         elif task == 'summarize':
             bs = 40
+    bs = int(bs / gas)
     return bs
 
 
@@ -225,11 +226,11 @@ def main():
                 train_sampler = DistributedSampler(train_data)
             if args.data_num == -1:
                 train_dataloader = DataLoader(train_data, sampler=train_sampler,
-                                              batch_size=get_bs(cur_task, args.model_name_or_path),
+                                              batch_size=get_bs(cur_task, args.model_name_or_path, args.gradient_accumulation_steps),
                                               num_workers=WORKER_NUM, pin_memory=True)
             else:
                 train_dataloader = DataLoader(train_data, sampler=train_sampler,
-                                              batch_size=get_bs(cur_task, args.model_name_or_path))
+                                              batch_size=get_bs(cur_task, args.model_name_or_path, args.gradient_accumulation_steps))
 
             train_dataloader_dict[cur_task] = cycle(train_dataloader)
 
@@ -272,6 +273,10 @@ def main():
             training_state['loss'] = dict([(k, []) for k in all_tasks])
             training_state['bleu_em'] = dict([(k, []) for k in all_tasks])
             training_state['skip_cnt'] = 0
+            training_state['nb_tr_steps'] = 0
+            training_state['nb_tr_examples'] = 0
+            training_state['tr_nb'] = 0
+            training_state['logging_loss'] = 0
 
         patience_pairs = []
         for cur_task in all_tasks:
@@ -294,8 +299,6 @@ def main():
         probs = [x ** 0.7 for x in probs]
         probs = [x / sum(probs) for x in probs]
 
-        nb_tr_steps = training_state['global_step'] * args.gradient_accumulation_steps
-        nb_tr_examples, tr_nb, logging_loss = 0, 0, 0
 
         bar = tqdm(total=args.max_steps - training_state['global_step'], desc="Training")
         while True:
@@ -310,149 +313,194 @@ def main():
             else:
                 training_state['skip_cnt'] = 0
 
-            training_state['step'] += 1
-            batch = next(train_dataloader)
+            for _ in range(args.gradient_accumulation_steps):
+                training_state['step'] += 1
+                batch = next(train_dataloader)
 
-            model.train()
-            batch = tuple(t.to(args.device) for t in batch)
-            source_ids, target_ids = batch
-            # logger.info('cur_task: %s, bs: %d', cur_task, source_ids.shape[0])
-            source_mask = source_ids.ne(tokenizer.pad_token_id)
-            target_mask = target_ids.ne(tokenizer.pad_token_id)
-            # pdb.set_trace()
+                model.train()
+                batch = tuple(t.to(args.device) for t in batch)
+                source_ids, target_ids = batch
+                # logger.info('cur_task: %s, bs: %d', cur_task, source_ids.shape[0])
+                source_mask = source_ids.ne(tokenizer.pad_token_id)
+                target_mask = target_ids.ne(tokenizer.pad_token_id)
+                # pdb.set_trace()
 
-            if args.model_type == 'roberta':
-                loss, _, _ = model(source_ids=source_ids, source_mask=source_mask,
-                                   target_ids=target_ids, target_mask=target_mask)
-            else:
-                outputs = model(input_ids=source_ids, attention_mask=source_mask,
-                                labels=target_ids, decoder_attention_mask=target_mask)
-                loss = outputs.loss
+                if args.model_type == 'roberta':
+                    loss, _, _ = model(source_ids=source_ids, source_mask=source_mask,
+                                       target_ids=target_ids, target_mask=target_mask)
+                else:
+                    outputs = model(input_ids=source_ids, attention_mask=source_mask,
+                                    labels=target_ids, decoder_attention_mask=target_mask)
+                    loss = outputs.loss
 
-            if args.n_gpu > 1:
-                loss = loss.mean()  # mean() to average on multi-gpu.
-            if args.gradient_accumulation_steps > 1:
-                loss = loss / args.gradient_accumulation_steps
-            training_state['tr_loss'] += loss.item()
+                if args.n_gpu > 1:
+                    loss = loss.mean()  # mean() to average on multi-gpu.
+                if args.gradient_accumulation_steps > 1:
+                    loss = loss / args.gradient_accumulation_steps
+                training_state['tr_loss'] += loss.item()
 
-            nb_tr_examples += source_ids.size(0)
-            nb_tr_steps += 1
-            loss.backward()
+                training_state['nb_tr_examples'] += source_ids.size(0)
+                training_state['nb_tr_steps'] += 1
+                loss.backward()
 
-            if nb_tr_steps % args.gradient_accumulation_steps == 0:
-                # Update parameters
-                optimizer.step()
-                optimizer.zero_grad()
-                scheduler.step()
-                training_state['global_step'] += 1
-                train_loss = round((training_state['tr_loss'] - logging_loss) / (training_state['global_step'] - tr_nb), 6)
-                bar.update(1)
-                bar.set_description("[{}] Train loss {}".format(training_state['step'], round(train_loss, 3)))
+            assert(training_state['nb_tr_steps'] % args.gradient_accumulation_steps == 0)
+            # Update parameters
+            optimizer.step()
+            optimizer.zero_grad()
+            scheduler.step()
+            training_state['global_step'] += 1
+            train_loss = round((training_state['tr_loss'] - training_state['logging_loss']) / (training_state['global_step'] - training_state['tr_nb']), 6)
+            bar.update(1)
+            bar.set_description("[{}] Train loss {}".format(training_state['step'], round(train_loss, 3)))
 
-                if args.local_rank in [-1, 0] and args.log_steps > 0 and training_state['global_step'] % args.log_steps == 0:
-                    logging_loss = train_loss
-                    tr_nb = training_state['global_step']
+            if args.local_rank in [-1, 0] and args.log_steps > 0 and training_state['global_step'] % args.log_steps == 0:
+                training_state['logging_loss'] = train_loss
+                training_state['tr_nb'] = training_state['global_step']
 
-                if args.do_eval and args.local_rank in [-1, 0] \
-                        and args.save_steps > 0 and training_state['global_step'] % args.save_steps == 0:
-                    # save last checkpoint
-                    if args.data_num == -1 and args.save_last_checkpoints:
-                        last_output_dir = os.path.join(args.output_dir, 'checkpoint-last')
-                        if not os.path.exists(last_output_dir):
-                            os.makedirs(last_output_dir)
-                        model_to_save = model.module if hasattr(model, 'module') else model
-                        output_model_file = os.path.join(last_output_dir, "pytorch_model.bin")
-                        output_optimizer_file = os.path.join(last_output_dir, "optimizer.pt")
-                        output_scheduler_file = os.path.join(last_output_dir, "scheduler.pt")
-                        save_checkpoint(training_state, optimizer, scheduler, model_to_save, output_model_file,
-                                        output_optimizer_file, output_scheduler_file, last_output_dir)
-                        logger.info("Save the last model into %s", output_model_file)
-                        logger.info("Save the optimizer and scheduler into %s and %s" % (
-                            output_optimizer_file, output_scheduler_file))
-                    if training_state['global_step'] % 100000 == 0:
-                        step_tag = '{}00k'.format(training_state['global_step'] // 100000)
-                        last_output_dir = os.path.join(args.output_dir, 'checkpoint-step-{}'.format(step_tag))
-                        if not os.path.exists(last_output_dir):
-                            os.makedirs(last_output_dir)
-                        model_to_save = model.module if hasattr(model, 'module') else model
-                        output_model_file = os.path.join(last_output_dir, "pytorch_model.bin")
-                        output_optimizer_file = os.path.join(last_output_dir, "optimizer.pt")
-                        output_scheduler_file = os.path.join(last_output_dir, "scheduler.pt")
-                        save_checkpoint(training_state, optimizer, scheduler, model_to_save, output_model_file,
-                                        output_optimizer_file, output_scheduler_file, last_output_dir)
-                        logger.info("Save the last model into %s", output_model_file)
-                        logger.info("Save the optimizer and scheduler into %s and %s" % (
-                            output_optimizer_file, output_scheduler_file))
-                    # Eval model with dev dataset
-                    if 'dev_loss' in dev_dataset:
-                        eval_examples_data_dict = dev_dataset['dev_loss']
+            if args.do_eval and args.local_rank in [-1, 0] \
+                    and args.save_steps > 0 and training_state['global_step'] % args.save_steps == 0:
+                # save last checkpoint
+                if args.data_num == -1 and args.save_last_checkpoints:
+                    last_output_dir = os.path.join(args.output_dir, 'checkpoint-last')
+                    if not os.path.exists(last_output_dir):
+                        os.makedirs(last_output_dir)
+                    model_to_save = model.module if hasattr(model, 'module') else model
+                    output_model_file = os.path.join(last_output_dir, "pytorch_model.bin")
+                    output_optimizer_file = os.path.join(last_output_dir, "optimizer.pt")
+                    output_scheduler_file = os.path.join(last_output_dir, "scheduler.pt")
+                    save_checkpoint(training_state, optimizer, scheduler, model_to_save, output_model_file,
+                                    output_optimizer_file, output_scheduler_file, last_output_dir)
+                    logger.info("Save the last model into %s", output_model_file)
+                    logger.info("Save the optimizer and scheduler into %s and %s" % (
+                        output_optimizer_file, output_scheduler_file))
+                if training_state['global_step'] % 100000 == 0:
+                    step_tag = '{}00k'.format(training_state['global_step'] // 100000)
+                    last_output_dir = os.path.join(args.output_dir, 'checkpoint-step-{}'.format(step_tag))
+                    if not os.path.exists(last_output_dir):
+                        os.makedirs(last_output_dir)
+                    model_to_save = model.module if hasattr(model, 'module') else model
+                    output_model_file = os.path.join(last_output_dir, "pytorch_model.bin")
+                    output_optimizer_file = os.path.join(last_output_dir, "optimizer.pt")
+                    output_scheduler_file = os.path.join(last_output_dir, "scheduler.pt")
+                    save_checkpoint(training_state, optimizer, scheduler, model_to_save, output_model_file,
+                                    output_optimizer_file, output_scheduler_file, last_output_dir)
+                    logger.info("Save the last model into %s", output_model_file)
+                    logger.info("Save the optimizer and scheduler into %s and %s" % (
+                        output_optimizer_file, output_scheduler_file))
+                # Eval model with dev dataset
+                if 'dev_loss' in dev_dataset:
+                    eval_examples_data_dict = dev_dataset['dev_loss']
+                else:
+                    eval_examples_data_dict = load_and_cache_multi_gen_data(args, pool, tokenizer, 'dev')
+                    dev_dataset['dev_loss'] = eval_examples_data_dict
+
+                for cur_task in eval_examples_data_dict.keys():
+                    if training_state['is_early_stop'][cur_task]:
+                        continue
+                    eval_examples, eval_data = eval_examples_data_dict[cur_task]
+                    eval_sampler = SequentialSampler(eval_data)
+                    if args.data_num == -1:
+                        eval_dataloader = DataLoader(eval_data, sampler=eval_sampler,
+                                                     batch_size=args.eval_batch_size,
+                                                     num_workers=4, pin_memory=True)
                     else:
-                        eval_examples_data_dict = load_and_cache_multi_gen_data(args, pool, tokenizer, 'dev')
-                        dev_dataset['dev_loss'] = eval_examples_data_dict
+                        eval_dataloader = DataLoader(eval_data, sampler=eval_sampler,
+                                                     batch_size=args.eval_batch_size)
 
+                    logger.info("  " + "***** Running ppl evaluation on [{}] *****".format(cur_task))
+                    logger.info("  Num examples = %d", len(eval_examples))
+                    logger.info("  Batch size = %d", args.eval_batch_size)
+
+                    # Start Evaluating model
+                    model.eval()
+                    eval_loss, batch_num = 0, 0
+                    for batch in tqdm(eval_dataloader, total=len(eval_dataloader), desc="Eval ppl"):
+                        batch = tuple(t.to(args.device) for t in batch)
+                        source_ids, target_ids = batch
+                        source_mask = source_ids.ne(tokenizer.pad_token_id)
+                        target_mask = target_ids.ne(tokenizer.pad_token_id)
+
+                        with torch.no_grad():
+                            if args.model_type == 'roberta':
+                                loss, _, _ = model(source_ids=source_ids, source_mask=source_mask,
+                                                   target_ids=target_ids, target_mask=target_mask)
+                            else:
+                                outputs = model(input_ids=source_ids, attention_mask=source_mask,
+                                                labels=target_ids, decoder_attention_mask=target_mask)
+                                loss = outputs.loss
+                        if args.n_gpu > 1:
+                            loss = loss.mean()
+                        eval_loss += loss.item()
+                        batch_num += 1
+                    # Print loss of dev dataset
+                    eval_loss = eval_loss / batch_num
+                    result = {'cur_task': cur_task,
+                              'global_step': training_state['global_step'],
+                              'eval_ppl': round(np.exp(eval_loss), 5),
+                              'train_loss': round(train_loss, 5)}
+                    training_state['loss'][cur_task].append(result)
+                    for key in sorted(result.keys()):
+                        logger.info("  %s = %s", key, str(result[key]))
+                    logger.info("  " + "*" * 20)
+
+                    if args.data_num == -1:
+                        tb_writer.add_scalar('dev_ppl_{}'.format(cur_task),
+                                             round(np.exp(eval_loss), 5),
+                                             training_state['global_step'])
+
+                    if eval_loss < training_state['best_loss'][cur_task]:
+                        logger.info("  Best ppl:%s", round(np.exp(eval_loss), 5))
+                        logger.info("  " + "*" * 20)
+                        fa_dict[cur_task].write(
+                            "[%d: %s] Best ppl changed into %.4f\n" % (training_state['global_step'], cur_task, np.exp(eval_loss)))
+                        training_state['best_loss'][cur_task] = eval_loss
+
+                        # Save best checkpoint for best ppl
+                        output_dir = os.path.join(args.output_dir, 'checkpoint-best-ppl', cur_task)
+                        if not os.path.exists(output_dir):
+                            os.makedirs(output_dir)
+                        if args.data_num == -1 or args.always_save_model:
+                            model_to_save = model.module if hasattr(model, 'module') else model
+                            output_model_file = os.path.join(output_dir, "pytorch_model.bin")
+                            output_optimizer_file = os.path.join(output_dir, "optimizer.pt")
+                            output_scheduler_file = os.path.join(output_dir, "scheduler.pt")
+                            save_checkpoint(training_state, optimizer, scheduler, model_to_save, output_model_file,
+                                            output_optimizer_file, output_scheduler_file, output_dir)
+                            logger.info("Save the best ppl model into %s", output_model_file)
+
+                if args.do_eval_bleu:
+                    eval_examples_data_dict = load_and_cache_multi_gen_data(args, pool, tokenizer, 'dev',
+                                                                            only_src=True, is_sample=True)
                     for cur_task in eval_examples_data_dict.keys():
                         if training_state['is_early_stop'][cur_task]:
                             continue
                         eval_examples, eval_data = eval_examples_data_dict[cur_task]
-                        eval_sampler = SequentialSampler(eval_data)
-                        if args.data_num == -1:
-                            eval_dataloader = DataLoader(eval_data, sampler=eval_sampler,
-                                                         batch_size=args.eval_batch_size,
-                                                         num_workers=4, pin_memory=True)
+
+                        # pdb.set_trace()
+                        result = eval_bleu(args, eval_data, eval_examples, model, tokenizer, 'dev', cur_task,
+                                           criteria='e{}'.format(training_state['global_step']))
+                        dev_bleu, dev_em = result['bleu'], result['em']
+                        if args.task == 'summarize':
+                            dev_bleu_em = dev_bleu
+                        elif args.task in ['defect', 'clone']:
+                            dev_bleu_em = dev_em
                         else:
-                            eval_dataloader = DataLoader(eval_data, sampler=eval_sampler,
-                                                         batch_size=args.eval_batch_size)
-
-                        logger.info("  " + "***** Running ppl evaluation on [{}] *****".format(cur_task))
-                        logger.info("  Num examples = %d", len(eval_examples))
-                        logger.info("  Batch size = %d", args.eval_batch_size)
-
-                        # Start Evaluating model
-                        model.eval()
-                        eval_loss, batch_num = 0, 0
-                        for batch in tqdm(eval_dataloader, total=len(eval_dataloader), desc="Eval ppl"):
-                            batch = tuple(t.to(args.device) for t in batch)
-                            source_ids, target_ids = batch
-                            source_mask = source_ids.ne(tokenizer.pad_token_id)
-                            target_mask = target_ids.ne(tokenizer.pad_token_id)
-
-                            with torch.no_grad():
-                                if args.model_type == 'roberta':
-                                    loss, _, _ = model(source_ids=source_ids, source_mask=source_mask,
-                                                       target_ids=target_ids, target_mask=target_mask)
-                                else:
-                                    outputs = model(input_ids=source_ids, attention_mask=source_mask,
-                                                    labels=target_ids, decoder_attention_mask=target_mask)
-                                    loss = outputs.loss
-                            if args.n_gpu > 1:
-                                loss = loss.mean()
-                            eval_loss += loss.item()
-                            batch_num += 1
-                        # Print loss of dev dataset
-                        eval_loss = eval_loss / batch_num
-                        result = {'cur_task': cur_task,
-                                  'global_step': training_state['global_step'],
-                                  'eval_ppl': round(np.exp(eval_loss), 5),
-                                  'train_loss': round(train_loss, 5)}
-                        training_state['loss'][cur_task].append(result)
-                        for key in sorted(result.keys()):
-                            logger.info("  %s = %s", key, str(result[key]))
-                        logger.info("  " + "*" * 20)
-
+                            dev_bleu_em = dev_bleu + dev_em
                         if args.data_num == -1:
-                            tb_writer.add_scalar('dev_ppl_{}'.format(cur_task),
-                                                 round(np.exp(eval_loss), 5),
-                                                 training_state['global_step'])
+                            training_state['bleu_em'][cur_task].append({'step': training_state['global_step'], 'bleu_em': dev_bleu_em})
+                            tb_writer.add_scalar('dev_bleu_em_{}'.format(cur_task), dev_bleu_em, training_state['global_step'])
 
-                        if eval_loss < training_state['best_loss'][cur_task]:
-                            logger.info("  Best ppl:%s", round(np.exp(eval_loss), 5))
+                        if dev_bleu_em > training_state['best_bleu_em'][cur_task]:
+                            training_state['not_bleu_em_inc_cnt'][cur_task] = 0
+                            logger.info("  [%d: %s] Best bleu+em: %.2f (bleu: %.2f, em: %.2f)",
+                                        training_state['global_step'], cur_task, dev_bleu_em, dev_bleu, dev_em)
                             logger.info("  " + "*" * 20)
+                            training_state['best_bleu_em'][cur_task] = dev_bleu_em
                             fa_dict[cur_task].write(
-                                "[%d: %s] Best ppl changed into %.4f\n" % (training_state['global_step'], cur_task, np.exp(eval_loss)))
-                            training_state['best_loss'][cur_task] = eval_loss
-
-                            # Save best checkpoint for best ppl
-                            output_dir = os.path.join(args.output_dir, 'checkpoint-best-ppl', cur_task)
+                                "[%d: %s] Best bleu+em changed into %.2f (bleu: %.2f, em: %.2f)\n" % (
+                                    training_state['global_step'], cur_task, training_state['best_bleu_em'][cur_task], dev_bleu, dev_em))
+                            # Save best checkpoint for best bleu
+                            output_dir = os.path.join(args.output_dir, 'checkpoint-best-bleu', cur_task)
                             if not os.path.exists(output_dir):
                                 os.makedirs(output_dir)
                             if args.data_num == -1 or args.always_save_model:
@@ -460,65 +508,21 @@ def main():
                                 output_model_file = os.path.join(output_dir, "pytorch_model.bin")
                                 output_optimizer_file = os.path.join(output_dir, "optimizer.pt")
                                 output_scheduler_file = os.path.join(output_dir, "scheduler.pt")
-                                save_checkpoint(training_state, optimizer, scheduler, model_to_save, output_model_file,
+                                save_checkpoint(training_state, optimizer, scheduler, model_to_save,
+                                                output_model_file,
                                                 output_optimizer_file, output_scheduler_file, output_dir)
-                                logger.info("Save the best ppl model into %s", output_model_file)
-
-                    if args.do_eval_bleu:
-                        eval_examples_data_dict = load_and_cache_multi_gen_data(args, pool, tokenizer, 'dev',
-                                                                                only_src=True, is_sample=True)
-                        for cur_task in eval_examples_data_dict.keys():
-                            if training_state['is_early_stop'][cur_task]:
-                                continue
-                            eval_examples, eval_data = eval_examples_data_dict[cur_task]
-
-                            # pdb.set_trace()
-                            result = eval_bleu(args, eval_data, eval_examples, model, tokenizer, 'dev', cur_task,
-                                               criteria='e{}'.format(training_state['global_step']))
-                            dev_bleu, dev_em = result['bleu'], result['em']
-                            if args.task == 'summarize':
-                                dev_bleu_em = dev_bleu
-                            elif args.task in ['defect', 'clone']:
-                                dev_bleu_em = dev_em
-                            else:
-                                dev_bleu_em = dev_bleu + dev_em
-                            if args.data_num == -1:
-                                training_state['bleu_em'][cur_task].append({'step': training_state['global_step'], 'bleu_em': dev_bleu_em})
-                                tb_writer.add_scalar('dev_bleu_em_{}'.format(cur_task), dev_bleu_em, training_state['global_step'])
-
-                            if dev_bleu_em > training_state['best_bleu_em'][cur_task]:
-                                training_state['not_bleu_em_inc_cnt'][cur_task] = 0
-                                logger.info("  [%d: %s] Best bleu+em: %.2f (bleu: %.2f, em: %.2f)",
-                                            training_state['global_step'], cur_task, dev_bleu_em, dev_bleu, dev_em)
-                                logger.info("  " + "*" * 20)
-                                training_state['best_bleu_em'][cur_task] = dev_bleu_em
-                                fa_dict[cur_task].write(
-                                    "[%d: %s] Best bleu+em changed into %.2f (bleu: %.2f, em: %.2f)\n" % (
-                                        training_state['global_step'], cur_task, training_state['best_bleu_em'][cur_task], dev_bleu, dev_em))
-                                # Save best checkpoint for best bleu
-                                output_dir = os.path.join(args.output_dir, 'checkpoint-best-bleu', cur_task)
-                                if not os.path.exists(output_dir):
-                                    os.makedirs(output_dir)
-                                if args.data_num == -1 or args.always_save_model:
-                                    model_to_save = model.module if hasattr(model, 'module') else model
-                                    output_model_file = os.path.join(output_dir, "pytorch_model.bin")
-                                    output_optimizer_file = os.path.join(output_dir, "optimizer.pt")
-                                    output_scheduler_file = os.path.join(output_dir, "scheduler.pt")
-                                    save_checkpoint(training_state, optimizer, scheduler, model_to_save,
-                                                    output_model_file,
-                                                    output_optimizer_file, output_scheduler_file, output_dir)
-                                    logger.info("Save the best bleu model into %s", output_model_file)
-                            else:
-                                training_state['not_bleu_em_inc_cnt'][cur_task] += 1
-                                logger.info("[%d %s] bleu/em does not increase for %d eval steps",
+                                logger.info("Save the best bleu model into %s", output_model_file)
+                        else:
+                            training_state['not_bleu_em_inc_cnt'][cur_task] += 1
+                            logger.info("[%d %s] bleu/em does not increase for %d eval steps",
+                                        training_state['global_step'], cur_task, training_state['not_bleu_em_inc_cnt'][cur_task])
+                            if training_state['not_bleu_em_inc_cnt'][cur_task] > patience_dict[cur_task]:
+                                logger.info("[%d %s] Early stop as bleu/em does not increase for %d eval steps",
                                             training_state['global_step'], cur_task, training_state['not_bleu_em_inc_cnt'][cur_task])
-                                if training_state['not_bleu_em_inc_cnt'][cur_task] > patience_dict[cur_task]:
-                                    logger.info("[%d %s] Early stop as bleu/em does not increase for %d eval steps",
-                                                training_state['global_step'], cur_task, training_state['not_bleu_em_inc_cnt'][cur_task])
-                                    training_state['is_early_stop'][cur_task] = 1
-                                    fa_dict[cur_task].write(
-                                        "[%d %s] Early stop as bleu/em does not increase for %d eval steps, takes %s" %
-                                        (training_state['global_step'], cur_task, training_state['not_bleu_em_inc_cnt'][cur_task], get_elapse_time(t0)))
+                                training_state['is_early_stop'][cur_task] = 1
+                                fa_dict[cur_task].write(
+                                    "[%d %s] Early stop as bleu/em does not increase for %d eval steps, takes %s" %
+                                    (training_state['global_step'], cur_task, training_state['not_bleu_em_inc_cnt'][cur_task], get_elapse_time(t0)))
 
                     logger.info("***** CUDA.empty_cache() *****")
                     torch.cuda.empty_cache()

@@ -199,12 +199,15 @@ def main():
         if args.task == 'identifier':
             codes = [example.source for example in train_examples]
             train_data = PlainCodeDataset(codes)
+
+            def collate_fn(batch):
+                return identifier_collator(batch, args, tokenizer, 0.3)
             train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size,
-                                          collate_fn=lambda b: identifier_collator(b, args, pool, tokenizer),
-                                          num_workers=4, pin_memory=True)
+                                          collate_fn=collate_fn,
+                                          num_workers=2, pin_memory=True)
         else:
             train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size,
-                                          num_workers=4, pin_memory=True)
+                                          num_workers=2, pin_memory=True)
 
         # Prepare optimizer and schedule (linear warmup and decay)
         no_decay = ['bias', 'LayerNorm.weight']
