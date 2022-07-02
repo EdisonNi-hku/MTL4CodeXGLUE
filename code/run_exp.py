@@ -124,14 +124,16 @@ def run_multi_task_exp(args):
     # Total train data num = 1149722 (for all five tasks)
     if 'codet5_small' in args.model_tag:
         bs, lr, max_steps, save_steps, log_steps = 64, 5, 600000, 20000, 100
-    else:
+    elif args.task == 'multi_task':
         bs, lr, max_steps, save_steps, log_steps = 32, 5, 800000, 20000, 100
+    else:
+        bs, lr, max_steps, save_steps, log_steps = 32, 5, 1000000, 20000, 100
 
     bs = int(bs / args.gas)
     if args.data_num != -1:
         max_steps, save_steps, log_steps = 1000, 200, 50
     print('============================Start Running==========================')
-    cmd_str = get_cmd(task='multi_task', sub_task='none', model_tag=args.model_tag, gpu=args.gpu,
+    cmd_str = get_cmd(task=args.task, sub_task='none', model_tag=args.model_tag, gpu=args.gpu,
                       data_num=args.data_num, bs=bs, lr=lr, source_length=-1, target_length=-1,
                       patience=-1, epoch=-1, warmup=1000,
                       model_dir=args.model_dir, summary_dir=args.summary_dir,
@@ -180,7 +182,7 @@ if __name__ == '__main__':
         os.makedirs(args.res_dir)
 
     assert args.sub_task in get_sub_tasks(args.task)
-    if args.task != 'multi_task':
+    if args.task != 'multi_task' and args.task != 'multi_auxiliary':
         run_one_exp(args)
     else:
         run_multi_task_exp(args)

@@ -450,7 +450,7 @@ if __name__ == '__main__':
                 subtasks = ['none']
             for sub in subtasks:
                 code = load_code(data_root='data', task=cur_task, subtask=sub)
-                # code = random.sample(code, math.ceil(0.1 * len(code)))
+                code = random.sample(code, math.ceil(0.1 * len(code)))
                 code_dict['{}_{}'.format(cur_task, sub)] = code
 
         torch.save(code_dict, cache_fn)

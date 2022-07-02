@@ -29,7 +29,7 @@ else
 fi
 
 EFF_BS=$((${BS}*${GRADIENT_STEP}))
-if [[ ${TASK} == 'multi_task' ]]; then
+if [[ ${TASK} == 'multi_task' || ${TASK} == 'multi_auxiliary' ]]; then
   FULL_MODEL_TAG=${MODEL_TAG}_${DATA_TAG}_lr${LR}_s${19}
 else
   FULL_MODEL_TAG=${MODEL_TAG}_${DATA_TAG}_lr${LR}_bs${EFF_BS}_src${SRC_LEN}_trg${TRG_LEN}_pat${PATIENCE}_e${EPOCH}
@@ -89,6 +89,7 @@ elif [[ ${TASK} == 'defect' ]] && [[ ${MODEL_TYPE} == 'roberta' ||  ${MODEL_TYPE
   RUN_FN=${WORKDIR}/run_defect_cont.py
 elif [[ ${TASK} == 'multi_auxiliary' ]]; then
   RUN_FN=${WORKDIR}/run_multi_gen_aux.py
+  MULTI_TASK_AUG='--max_steps '${19}' --save_steps '${20}' --log_steps '${21}
 else
   RUN_FN=${WORKDIR}/run_gen_cont.py
 fi
