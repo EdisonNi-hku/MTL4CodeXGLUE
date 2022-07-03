@@ -136,7 +136,7 @@ def run_multi_task_exp(args):
     if args.data_num != -1:
         max_steps, save_steps, log_steps = 1000, 200, 50
     print('============================Start Running==========================')
-    cmd_str = get_cmd(task=args.task, sub_task='none', model_tag=args.model_tag, gpu=args.gpu,
+    cmd_str = get_cmd(task=args.task, sub_task=args.sub_task, model_tag=args.model_tag, gpu=args.gpu,
                       data_num=args.data_num, bs=bs, lr=lr, source_length=-1, target_length=-1,
                       patience=-1, epoch=-1, warmup=1000,
                       model_dir=args.model_dir, summary_dir=args.summary_dir,
