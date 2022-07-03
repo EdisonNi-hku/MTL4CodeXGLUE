@@ -6,6 +6,7 @@ import random
 import torch
 import time
 from tqdm import tqdm
+import math
 from _utils import *
 
 logger = logging.getLogger(__name__)
@@ -254,6 +255,8 @@ def load_and_cache_multi_aux_gen_data(args, pool, tokenizer, split_tag, only_src
                         features = pool.map(convert_examples_to_features, tqdm(tuple_examples, total=len(tuple_examples)))
                     else:
                         features = [convert_examples_to_features(x) for x in tuple_examples]
+                    if task == 'dataflow':
+                        features = random.sample(features, math.ceil((args.aux_percentage / 100) * len(features)))
                     all_source_ids = torch.tensor([f.source_ids for f in features], dtype=torch.long)
                     if only_src:
                         data = TensorDataset(all_source_ids)
@@ -263,8 +266,65 @@ def load_and_cache_multi_aux_gen_data(args, pool, tokenizer, split_tag, only_src
                     examples_data_dict['{}_{}'.format(task, sub_task) if sub_task != 'none' else task] = (examples, data)
                 else:
                     codes = [example.source for example in examples]
+                    codes = random.sample(codes, math.ceil((args.aux_percentage / 100) * len(codes)))
                     data = PlainCodeDataset(codes)
                     examples_data_dict['{}_{}'.format(task, sub_task) if sub_task != 'none' else task] = (examples, data)
+
+        if args.local_rank in [-1, 0] and not is_sample:
+            torch.save(examples_data_dict, cache_fn)
+            logger.info("Save data into %s", cache_fn)
+    return examples_data_dict
+
+
+def load_and_cache_summarize_aux_data(args, pool, tokenizer, split_tag, only_src=False, is_sample=False):
+    cache_fn = os.path.join(args.cache_path, split_tag)
+    if os.path.exists(cache_fn) and not is_sample:
+        logger.info("Load cache data from %s", cache_fn)
+        examples_data_dict = torch.load(cache_fn)
+    else:
+        examples_data_dict = {}
+
+        task_list = ['summarize', 'dataflow', 'identifier']
+        for task in task_list:
+            if task in ['identifier', 'dataflow'] and split_tag != 'train':
+                continue
+            args.task = task
+            if task == 'summarize':
+                args.max_source_length = 256
+                args.max_target_length = 128
+            elif task in ['identifier', 'dataflow']:
+                args.max_source_length = 512
+                args.max_target_length = 512
+
+            filename = get_filenames(args.data_dir, args.task, args.sub_task, split_tag)
+            examples = read_examples(filename, args.data_num, args.task)
+            if is_sample:
+                examples = random.sample(examples, min(5000, len(examples)))
+            if split_tag == 'train':
+                calc_stats(examples, tokenizer, is_tokenize=True)
+            else:
+                calc_stats(examples)
+
+            if task != 'identifier':
+                tuple_examples = [(example, idx, tokenizer, args, split_tag) for idx, example in enumerate(examples)]
+                if args.data_num == -1:
+                    features = pool.map(convert_examples_to_features, tqdm(tuple_examples, total=len(tuple_examples)))
+                else:
+                    features = [convert_examples_to_features(x) for x in tuple_examples]
+                if task == 'dataflow':
+                    features = random.sample(features, math.ceil((args.aux_percentage / 100) * len(features)))
+                all_source_ids = torch.tensor([f.source_ids for f in features], dtype=torch.long)
+                if only_src:
+                    data = TensorDataset(all_source_ids)
+                else:
+                    all_target_ids = torch.tensor([f.target_ids for f in features], dtype=torch.long)
+                    data = TensorDataset(all_source_ids, all_target_ids)
+                examples_data_dict['{}_{}'.format(task, args.sub_task) if args.sub_task != 'none' else task] = (examples, data)
+            else:
+                codes = [example.source for example in examples]
+                codes = random.sample(codes, math.ceil((args.aux_percentage / 100) * len(codes)))
+                data = PlainCodeDataset(codes)
+                examples_data_dict['{}_{}'.format(task, args.sub_task) if args.sub_task != 'none' else task] = (examples, data)
 
         if args.local_rank in [-1, 0] and not is_sample:
             torch.save(examples_data_dict, cache_fn)

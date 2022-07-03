@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 def add_args(parser):
     parser.add_argument("--task", type=str, required=True,
                         choices=['summarize', 'concode', 'translate', 'refine', 'defect', 'clone', 'multi_task',
-                                 'dataflow', 'identifier', 'multi_auxiliary'])
+                                 'dataflow', 'identifier', 'multi_auxiliary', 'summarize_auxiliary'])
     parser.add_argument("--sub_task", type=str, default='')
     parser.add_argument("--lang", type=str, default='')
     parser.add_argument("--eval_task", type=str, default='')
@@ -102,6 +102,8 @@ def add_args(parser):
                         help="random seed for initialization")
     parser.add_argument("--cont", type=int, default=0,
                         help='continue previous training or not')
+    parser.add_argument("--aux_percentage", type=int, default=10,
+                        help='percentage of auxiliary data')
     args = parser.parse_args()
 
     if args.task in ['summarize']:

@@ -4,19 +4,19 @@ import argparse
 
 
 def get_cmd(task, sub_task, model_tag, gpu, data_num, bs, lr, source_length, target_length, patience, epoch, warmup,
-            model_dir, summary_dir, res_fn, load_path, gradient_step, eval_bs, max_steps=None, save_steps=None, log_steps=None):
+            model_dir, summary_dir, res_fn, load_path, gradient_step, eval_bs, aux_percentage, max_steps=None, save_steps=None, log_steps=None):
     if task != 'translate':
         eval_bs = bs
     if task == 'clone':
         eval_bs = bs / 2
     if max_steps is None:
-        cmd_str = 'bash code/exp_with_args.sh %s %s %s %s %d %d %d %d %d %d %d %d %s %s %s %s %d %d' % \
+        cmd_str = 'bash code/exp_with_args.sh %s %s %s %s %d %d %d %d %d %d %d %d %s %s %s %s %d %d %d' % \
                   (task, sub_task, model_tag, gpu, data_num, bs, lr, source_length, target_length, patience, epoch,
-                   warmup, model_dir, summary_dir, res_fn, load_path, gradient_step, eval_bs)
+                   warmup, model_dir, summary_dir, res_fn, load_path, gradient_step, eval_bs, aux_percentage)
     else:
-        cmd_str = 'bash code/exp_with_args.sh %s %s %s %s %d %d %d %d %d %d %d %d %s %s %s %s %d %d %d %d %d' % \
+        cmd_str = 'bash code/exp_with_args.sh %s %s %s %s %d %d %d %d %d %d %d %d %s %s %s %s %d %d %d %d %d %d' % \
                   (task, sub_task, model_tag, gpu, data_num, bs, lr, source_length, target_length, patience, epoch,
-                   warmup, model_dir, summary_dir, res_fn, load_path, gradient_step, eval_bs, max_steps, save_steps, log_steps)
+                   warmup, model_dir, summary_dir, res_fn, load_path, gradient_step, eval_bs, aux_percentage, max_steps, save_steps, log_steps)
     return cmd_str
 
 
@@ -126,9 +126,12 @@ def run_multi_task_exp(args):
         bs, lr, max_steps, save_steps, log_steps = 64, 5, 600000, 20000, 100
     elif args.task == 'multi_task':
         bs, lr, max_steps, save_steps, log_steps = 32, 5, 800000, 20000, 100
-    else:
+    elif args.task == 'multi_auxiliary':
         bs, lr, max_steps, save_steps, log_steps = 32, 5, 1000000, 20000, 100
-
+    elif args.task == 'summarize_auxiliary':
+        bs, lr, max_steps, save_steps, log_steps = 32, 5, 100000, 6500, 100
+    else:
+        raise ValueError("setting not defined")
     bs = int(bs / args.gas)
     if args.data_num != -1:
         max_steps, save_steps, log_steps = 1000, 200, 50
@@ -139,7 +142,7 @@ def run_multi_task_exp(args):
                       model_dir=args.model_dir, summary_dir=args.summary_dir,
                       res_fn='{}/multi_task_{}.txt'.format(args.res_dir, args.model_tag),
                       max_steps=max_steps, save_steps=save_steps, log_steps=log_steps, gradient_step=args.gas,
-                      load_path=args.cont_model_path, eval_bs=args.eval_bs)
+                      load_path=args.cont_model_path, eval_bs=args.eval_bs, aux_percentage=args.aux_percentage)
     print('%s\n' % cmd_str)
     print('Gradient accumulate steps: ', args.gas)
     print('True batch size: ', bs * args.gas)
@@ -147,7 +150,7 @@ def run_multi_task_exp(args):
 
 
 def get_sub_tasks(task):
-    if task == 'summarize':
+    if task in ['summarize', 'summarize_auxiliary']:
         sub_tasks = ['ruby', 'javascript', 'go', 'python', 'java', 'php']
     elif task in ['dataflow', 'identifier']:
         sub_tasks = ['ruby', 'javascript', 'go', 'python', 'java', 'php', 'c_sharp']
@@ -166,7 +169,8 @@ if __name__ == '__main__':
                         choices=['roberta', 'codebert', 'bart_base', 'codet5_small', 'codet5_base', 'cotext', 't5_base'])
     parser.add_argument("--task", type=str, default='summarize', choices=['summarize', 'concode', 'translate',
                                                                           'refine', 'defect', 'clone', 'multi_task',
-                                                                          'dataflow', 'identifier', 'multi_auxiliary'])
+                                                                          'dataflow', 'identifier', 'multi_auxiliary',
+                                                                          'summarize_auxiliary'])
     parser.add_argument("--sub_task", type=str, default='ruby')
     parser.add_argument("--res_dir", type=str, default='results', help='directory to save fine-tuning results')
     parser.add_argument("--model_dir", type=str, default='saved_models', help='directory to save fine-tuned models')
@@ -176,13 +180,15 @@ if __name__ == '__main__':
     parser.add_argument("--gas", type=int, default=1, help='gradient accumulate steps')
     parser.add_argument("--cont_model_path", type=str, default='no')
     parser.add_argument("--eval_bs", type=int, default=8, help='evaluation batch size')
+    parser.add_argument("--aux_percentage", type=int, default=10,
+                        help='percentage of auxiliary data')
     args = parser.parse_args()
 
     if not os.path.exists(args.res_dir):
         os.makedirs(args.res_dir)
 
     assert args.sub_task in get_sub_tasks(args.task)
-    if args.task != 'multi_task' and args.task != 'multi_auxiliary':
+    if args.task not in ['multi_task', 'multi_auxiliary', 'summarize_auxiliary']:
         run_one_exp(args)
     else:
         run_multi_task_exp(args)

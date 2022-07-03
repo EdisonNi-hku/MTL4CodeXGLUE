@@ -29,8 +29,6 @@ from tqdm import tqdm
 from itertools import cycle
 import multiprocessing
 import time
-import sys
-import pdb
 import json
 
 from torch.utils.tensorboard import SummaryWriter
@@ -38,13 +36,11 @@ from torch.utils.data import DataLoader, SequentialSampler, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
 from transformers import AdamW, get_linear_schedule_with_warmup
 from models import build_or_load_gen_model
-from evaluator import smooth_bleu
-from evaluator.CodeBLEU import calc_code_bleu
-from evaluator.bleu import _bleu
-from utils import get_elapse_time, load_and_cache_multi_aux_gen_data, save_checkpoint
+from utils import get_elapse_time, load_and_cache_summarize_aux_data, save_checkpoint
 from configs import add_args, set_seed, set_dist
 from run_multi_gen_cont import eval_bleu
 from code_to_ast import identifier_collator
+from run_multi_gen_aux import get_gradient_accumulate_step, get_bs
 
 cpu_cont = multiprocessing.cpu_count()
 
@@ -53,33 +49,6 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
 WORKER_NUM = 0
-
-
-def get_gradient_accumulate_step(args, task):
-    if 'identifier' in task or 'dataflow' in task:
-        return 4 * args.gradient_accumulation_steps
-    else:
-        return args.gradient_accumulation_steps
-
-
-def get_bs(cur_task, model_tag, gas):
-    task = cur_task.split('_')[0]
-    sub_task = cur_task.split('_')[-1]
-    if 'codet5_small' in model_tag:
-        bs = 32
-        if task == 'summarize' or task == 'translate' or (task == 'refine' and sub_task == 'small'):
-            bs = 64
-    else:
-        # codet5_base
-        bs = 32
-        if task == 'translate':
-            bs = 24
-        elif task == 'summarize':
-            bs = 40
-        elif task in ['identifier', 'dataflow']:
-            bs = 8
-    bs = int(bs / gas)
-    return bs
 
 
 def main():
@@ -108,7 +77,7 @@ def main():
             tb_writer = SummaryWriter(summary_fn)
 
         # Prepare training data loader
-        train_examples_data_dict = load_and_cache_multi_aux_gen_data(args, pool, tokenizer, 'train', is_sample=False)
+        train_examples_data_dict = load_and_cache_summarize_aux_data(args, pool, tokenizer, 'train', is_sample=False)
         train_data_list = [v[1] for k, v in train_examples_data_dict.items()]
         all_tasks = [k for k, v in train_examples_data_dict.items()]
         total_train_data_num = sum([len(v[0]) for k, v in train_examples_data_dict.items()])
@@ -305,7 +274,7 @@ def main():
                 if 'dev_loss' in dev_dataset:
                     eval_examples_data_dict = dev_dataset['dev_loss']
                 else:
-                    eval_examples_data_dict = load_and_cache_multi_aux_gen_data(args, pool, tokenizer, 'dev')
+                    eval_examples_data_dict = load_and_cache_summarize_aux_data(args, pool, tokenizer, 'dev')
                     dev_dataset['dev_loss'] = eval_examples_data_dict
 
                 for cur_task in eval_examples_data_dict.keys():
@@ -383,7 +352,7 @@ def main():
                             logger.info("Save the best ppl model into %s", output_model_file)
 
                 if args.do_eval_bleu:
-                    eval_examples_data_dict = load_and_cache_multi_aux_gen_data(args, pool, tokenizer, 'dev',
+                    eval_examples_data_dict = load_and_cache_summarize_aux_data(args, pool, tokenizer, 'dev',
                                                                             only_src=True, is_sample=True)
                     for cur_task in eval_examples_data_dict.keys():
                         if training_state['is_early_stop'][cur_task]:
@@ -453,7 +422,7 @@ def main():
     if args.do_test:
         logger.info("  " + "***** Testing *****")
         logger.info("  Batch size = %d", args.eval_batch_size)
-        eval_examples_data_dict = load_and_cache_multi_aux_gen_data(args, pool, tokenizer, 'test', only_src=True)
+        eval_examples_data_dict = load_and_cache_summarize_aux_data(args, pool, tokenizer, 'test', only_src=True)
         all_tasks = list(eval_examples_data_dict.keys())
         for cur_task in all_tasks:
             summary_dir = os.path.join(args.output_dir, 'summary')

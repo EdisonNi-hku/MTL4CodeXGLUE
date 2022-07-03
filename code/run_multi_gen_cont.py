@@ -67,6 +67,8 @@ def get_max_trg_len_by_task(task, sub_task):
         max_target_length = 150
     elif task == 'defect':
         max_target_length = 3
+    elif task in ['identifier', 'dataflow']:
+        max_target_length = 512
     return max_target_length
 
 
