@@ -256,8 +256,8 @@ def main():
                     logger.info("Save the last model into %s", output_model_file)
                     logger.info("Save the optimizer and scheduler into %s and %s" % (
                         output_optimizer_file, output_scheduler_file))
-                if training_state['global_step'] % 100000 == 0:
-                    step_tag = '{}00k'.format(training_state['global_step'] // 100000)
+                if training_state['global_step'] % 10000 == 0:
+                    step_tag = '{}0k'.format(training_state['global_step'] // 10000)
                     last_output_dir = os.path.join(args.output_dir, 'checkpoint-step-{}'.format(step_tag))
                     if not os.path.exists(last_output_dir):
                         os.makedirs(last_output_dir)
@@ -436,7 +436,10 @@ def main():
             args.sub_task = cur_task.split('_')[-1]
 
             for criteria in ['best-bleu', 'best-ppl', 'last']:
-                file = os.path.join(args.output_dir, 'checkpoint-{}/{}/pytorch_model.bin'.format(criteria, cur_task))
+                if criteria == 'last':
+                    file = os.path.join(args.output_dir, 'checkpoint-last/pytorch_model.bin')
+                else:
+                    file = os.path.join(args.output_dir, 'checkpoint-{}/{}/pytorch_model.bin'.format(criteria, cur_task))
                 model.load_state_dict(torch.load(file))
 
                 result = eval_bleu(args, eval_data, eval_examples, model, tokenizer, 'test', cur_task, criteria)

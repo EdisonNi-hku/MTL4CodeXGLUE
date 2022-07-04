@@ -21,6 +21,13 @@ LOAD_PATH=${16}
 GRADIENT_STEP=${17}
 EVAL_BS=${18}
 AUX_PER=${19}
+TEST=${20}
+
+if [[ $TEST == 1 ]]; then
+  TEST_AUG='--do_test'
+else
+  TEST_AUG='--do_train --do_eval --do_eval_bleu --do_test'
+fi
 
 if [[ $DATA_NUM == -1 ]]; then
   DATA_TAG='all'
@@ -31,7 +38,7 @@ fi
 
 EFF_BS=$((${BS}*${GRADIENT_STEP}))
 if [[ ${TASK} == 'multi_task' || ${TASK} == 'multi_auxiliary' || ${TASK} == 'summarize_auxiliary' ]]; then
-  FULL_MODEL_TAG=${MODEL_TAG}_${DATA_TAG}_lr${LR}_s${20}_a${AUX_PER}
+  FULL_MODEL_TAG=${MODEL_TAG}_${DATA_TAG}_lr${LR}_s${21}_a${AUX_PER}
 else
   FULL_MODEL_TAG=${MODEL_TAG}_${DATA_TAG}_lr${LR}_bs${EFF_BS}_src${SRC_LEN}_trg${TRG_LEN}_pat${PATIENCE}_e${EPOCH}
 fi
@@ -83,17 +90,17 @@ fi
 
 if [[ ${TASK} == 'multi_task' ]]; then
   RUN_FN=${WORKDIR}/run_multi_gen_cont.py
-  MULTI_TASK_AUG='--max_steps '${20}' --save_steps '${21}' --log_steps '${22}
+  MULTI_TASK_AUG='--max_steps '${21}' --save_steps '${22}' --log_steps '${23}
 elif [[ ${TASK} == 'clone' ]]; then
   RUN_FN=${WORKDIR}/run_clone_cont.py
 elif [[ ${TASK} == 'defect' ]] && [[ ${MODEL_TYPE} == 'roberta' ||  ${MODEL_TYPE} == 'bart' ]]; then
   RUN_FN=${WORKDIR}/run_defect_cont.py
 elif [[ ${TASK} == 'multi_auxiliary' ]]; then
   RUN_FN=${WORKDIR}/run_multi_gen_aux.py
-  MULTI_TASK_AUG='--max_steps '${20}' --save_steps '${21}' --log_steps '${22}
+  MULTI_TASK_AUG='--max_steps '${21}' --save_steps '${22}' --log_steps '${23}
   elif [[ ${TASK} == 'summarize_auxiliary' ]]; then
   RUN_FN=${WORKDIR}/run_summarize_aux.py
-  MULTI_TASK_AUG='--max_steps '${20}' --save_steps '${21}' --log_steps '${22}
+  MULTI_TASK_AUG='--max_steps '${21}' --save_steps '${22}' --log_steps '${23}
 else
   RUN_FN=${WORKDIR}/run_gen_cont.py
 fi
@@ -105,7 +112,7 @@ fi
 
 CUDA_VISIBLE_DEVICES=${GPU} \
   python ${RUN_FN}  \
-  --do_train --do_eval --do_eval_bleu --do_test ${MULTI_TASK_AUG} --gradient_accumulation_steps ${GRADIENT_STEP} \
+  ${TEST_AUG} ${MULTI_TASK_AUG} --gradient_accumulation_steps ${GRADIENT_STEP} \
   --task ${TASK} --sub_task ${SUB_TASK} --model_type ${MODEL_TYPE} --data_num ${DATA_NUM} --aux_percentage ${AUX_PER} \
   --num_train_epochs ${EPOCH} --warmup_steps ${WARMUP} --learning_rate ${LR}e-5 --patience ${PATIENCE} \
   --tokenizer_name=${TOKENIZER}  --model_name_or_path=${MODEL_PATH} --data_dir ${DATADIR}  \

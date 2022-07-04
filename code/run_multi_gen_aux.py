@@ -467,7 +467,11 @@ def main():
             args.sub_task = cur_task.split('_')[-1]
 
             for criteria in ['best-bleu', 'best-ppl', 'last']:
-                file = os.path.join(args.output_dir, 'checkpoint-{}/{}/pytorch_model.bin'.format(criteria, cur_task))
+                if criteria == 'last':
+                    file = os.path.join(args.output_dir, 'checkpoint-last/pytorch_model.bin')
+                else:
+                    file = os.path.join(args.output_dir,
+                                        'checkpoint-{}/{}/pytorch_model.bin'.format(criteria, cur_task))
                 model.load_state_dict(torch.load(file))
 
                 result = eval_bleu(args, eval_data, eval_examples, model, tokenizer, 'test', cur_task, criteria)
