@@ -23,15 +23,19 @@ class PlainCodeDataset(torch.utils.data.Dataset):
         return len(self.codes)
 
 
-def get_src_lang_from_task(args):
-    if args.task == 'summarize':
-        return args.sub_task
-    elif args.task == 'defect':
+def get_src_lang_from_task(task, sub_task):
+    if task in ['summarize', 'identifier', 'dataflow']:
+        return sub_task
+    elif task == 'defect':
         return 'c'
-    elif args.task == 'translate' and args.sub_task == 'cs-java':
+    elif task == 'translate' and sub_task == 'cs-java':
         return 'c_sharp'
-    else:
+    elif task == 'translate' and sub_task == 'java-cs':
         return 'java'
+    elif task == 'clone':
+        return 'java'
+    else:
+        raise ValueError("undefined task in get_src_lang_from_task")
 
 
 def load_and_cache_gen_data(args, filename, pool, tokenizer, split_tag, only_src=False, is_sample=False):
@@ -445,3 +449,36 @@ def save_checkpoint(training_state, optimizer, scheduler, model_to_save, output_
     torch.save(scheduler.state_dict(), output_scheduler_file)
     with open(os.path.join(last_output_dir, "training_state.json"), 'w') as f:
         json.dump(training_state, f)
+
+
+def convert_src_tgt_to_features(item):
+    src, tgt, idx, tokenizer, args, task, sub_task = item
+    if args.model_type in ['t5', 'codet5'] and args.add_task_prefix:
+        if sub_task != 'none':
+            source_str = "{} {}: {}".format(task, sub_task, src)
+        else:
+            source_str = "{}: {}".format(task, src)
+    else:
+        source_str = src
+
+    source_str = source_str.replace('</s>', '<unk>')
+    source_ids = tokenizer.encode(source_str, max_length=512, padding='max_length', truncation=True)
+    assert source_ids.count(tokenizer.eos_token_id) == 1
+
+    target_str = tgt
+    if args.add_lang_ids:
+        target_str = add_lang_by_task(tgt, task, sub_task)
+
+    target_str = target_str.replace('</s>', '<unk>')
+    if idx == 0:
+        logger.info("Identifier denoising example source: " + source_str)
+        logger.info("Identifier denoising example target: " + target_str)
+    target_ids = tokenizer.encode(target_str, max_length=512, padding='max_length',
+                                  truncation=True)
+    assert target_ids.count(tokenizer.eos_token_id) == 1
+
+    return InputFeatures(
+        idx,
+        source_ids,
+        target_ids,
+    )

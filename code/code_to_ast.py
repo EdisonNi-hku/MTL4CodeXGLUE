@@ -220,22 +220,32 @@ def mask_identifiers(code_string, lang, percentage=0.3):
     return code_string, tgt_string.strip()
 
 
-def identifier_collator(batch, args, tokenizer, percentage=0.3):
-    lang = get_src_lang_from_task(args)
-    codes = [item[0] for item in batch]
-    masked_codes = []
-    targets = []
-    for code in codes:
-        masked_code, tgt = mask_identifiers(code, lang, percentage)
-        masked_codes.append(masked_code)
-        targets.append(tgt)
-    items = [(masked_code, tgt, idx, tokenizer, args) for idx, (masked_code, tgt) in enumerate(zip(masked_codes, targets))]
-    features = []
-    for item in items:
-        features.append(convert_src_tgt_to_features(item))
-    source_ids = torch.tensor([f.source_ids for f in features], dtype=torch.long)
-    target_ids = torch.tensor([f.target_ids for f in features], dtype=torch.long)
-    return source_ids, target_ids
+class IdentifierCollator(object):
+    def __init__(self, args, cur_task, tokenizer, percentage=0.3):
+        self.args = args
+        self.cur_task = cur_task
+        self.tokenizer = tokenizer
+        self.percentage = percentage
+
+    def __call__(self, batch):
+        task = self.cur_task.split('_')[0]
+        sub_task = self.cur_task.split('_')[-1]
+        lang = get_src_lang_from_task(task, sub_task)
+        codes = [item[0] for item in batch]
+        masked_codes = []
+        targets = []
+        for code in codes:
+            masked_code, tgt = mask_identifiers(code, lang, self.percentage)
+            masked_codes.append(masked_code)
+            targets.append(tgt)
+        items = [(masked_code, tgt, idx, self.tokenizer, self.args, task, sub_task) for idx, (masked_code, tgt) in
+                 enumerate(zip(masked_codes, targets))]
+        features = []
+        for item in items:
+            features.append(convert_src_tgt_to_features(item))
+        source_ids = torch.tensor([f.source_ids for f in features], dtype=torch.long)
+        target_ids = torch.tensor([f.target_ids for f in features], dtype=torch.long)
+        return source_ids, target_ids
 
 
 def get_parser(lang_dir, lang):

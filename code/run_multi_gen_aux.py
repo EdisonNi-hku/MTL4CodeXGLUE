@@ -44,7 +44,7 @@ from evaluator.bleu import _bleu
 from utils import get_elapse_time, load_and_cache_multi_aux_gen_data, save_checkpoint
 from configs import add_args, set_seed, set_dist
 from run_multi_gen_cont import eval_bleu
-from code_to_ast import identifier_collator
+from code_to_ast import IdentifierCollator
 
 cpu_cont = multiprocessing.cpu_count()
 
@@ -109,6 +109,9 @@ def main():
 
         # Prepare training data loader
         train_examples_data_dict = load_and_cache_multi_aux_gen_data(args, pool, tokenizer, 'train', is_sample=False)
+        logger.info("Data Counts:")
+        for k, v in train_examples_data_dict.items():
+            logger.info(k + ': ' + str(len(v)))
         train_data_list = [v[1] for k, v in train_examples_data_dict.items()]
         all_tasks = [k for k, v in train_examples_data_dict.items()]
         total_train_data_num = sum([len(v[0]) for k, v in train_examples_data_dict.items()])
@@ -126,16 +129,16 @@ def main():
             else:
                 train_sampler = DistributedSampler(train_data)
             if 'identifier' in cur_task:
-
-                def collate_fn(batch):
-                    return identifier_collator(batch, args, tokenizer, 0.3)
+                identifier_collator = IdentifierCollator(args, cur_task, tokenizer, 0.3)
                 if args.data_num == -1:
-                    train_dataloader = DataLoader(train_data, sampler=train_sampler, collate_fn=collate_fn,
-                                                  batch_size=get_bs(cur_task, args.model_name_or_path, args.gradient_accumulation_steps),
+                    train_dataloader = DataLoader(train_data, sampler=train_sampler, collate_fn=identifier_collator,
+                                                  batch_size=get_bs(cur_task, args.model_name_or_path,
+                                                                    args.gradient_accumulation_steps),
                                                   num_workers=WORKER_NUM, pin_memory=True)
                 else:
-                    train_dataloader = DataLoader(train_data, sampler=train_sampler, collate_fn=collate_fn,
-                                                  batch_size=get_bs(cur_task, args.model_name_or_path, args.gradient_accumulation_steps))
+                    train_dataloader = DataLoader(train_data, sampler=train_sampler, collate_fn=identifier_collator,
+                                                  batch_size=get_bs(cur_task, args.model_name_or_path,
+                                                                    args.gradient_accumulation_steps))
             else:
                 if args.data_num == -1:
                     train_dataloader = DataLoader(train_data, sampler=train_sampler,
@@ -215,6 +218,8 @@ def main():
         bar = tqdm(total=args.max_steps - training_state['global_step'], desc="Training")
         while True:
             cur_task = np.random.choice(all_tasks, 1, p=probs)[0]
+            if 'identifier' in cur_task or 'dataflow' in cur_task:
+                logger.info("Running " + cur_task)
             train_dataloader = train_dataloader_dict[cur_task]
             if training_state['is_early_stop'][cur_task]:
                 training_state['skip_cnt'] += 1

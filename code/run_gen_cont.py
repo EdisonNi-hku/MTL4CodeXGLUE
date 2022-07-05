@@ -39,7 +39,7 @@ from evaluator import smooth_bleu
 from evaluator.CodeBLEU import calc_code_bleu
 from evaluator.bleu import _bleu
 from utils import get_filenames, get_elapse_time, load_and_cache_gen_data, save_checkpoint, PlainCodeDataset
-from code_to_ast import identifier_collator
+from code_to_ast import IdentifierCollator
 from configs import add_args, set_seed, set_dist
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
@@ -199,11 +199,9 @@ def main():
         if args.task == 'identifier':
             codes = [example.source for example in train_examples]
             train_data = PlainCodeDataset(codes)
-
-            def collate_fn(batch):
-                return identifier_collator(batch, args, tokenizer, 0.3)
+            identifier_collator = IdentifierCollator(args, 'identifier_' + args.sub_task, tokenizer, 0.3)
             train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size,
-                                          collate_fn=collate_fn,
+                                          collate_fn=identifier_collator,
                                           num_workers=2, pin_memory=True)
         else:
             train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size,

@@ -22,36 +22,6 @@ def add_lang_by_task(target_str, task, sub_task):
     return target_str
 
 
-def convert_src_tgt_to_features(item):
-    src, tgt, idx, tokenizer, args = item
-    if args.model_type in ['t5', 'codet5'] and args.add_task_prefix:
-        if args.sub_task != 'none':
-            source_str = "{} {}: {}".format(args.task, args.sub_task, src)
-        else:
-            source_str = "{}: {}".format(args.task, src)
-    else:
-        source_str = src
-
-    source_str = source_str.replace('</s>', '<unk>')
-    source_ids = tokenizer.encode(source_str, max_length=args.max_source_length, padding='max_length', truncation=True)
-    assert source_ids.count(tokenizer.eos_token_id) == 1
-
-    target_str = tgt
-    if args.add_lang_ids:
-        target_str = add_lang_by_task(tgt, args.task, args.sub_task)
-
-    target_str = target_str.replace('</s>', '<unk>')
-    target_ids = tokenizer.encode(target_str, max_length=args.max_target_length, padding='max_length',
-                                  truncation=True)
-    assert target_ids.count(tokenizer.eos_token_id) == 1
-
-    return InputFeatures(
-        idx,
-        source_ids,
-        target_ids,
-    )
-
-
 def convert_examples_to_features(item):
     example, example_index, tokenizer, args, stage = item
 
