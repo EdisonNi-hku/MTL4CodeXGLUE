@@ -220,6 +220,15 @@ def main():
             cur_task = np.random.choice(all_tasks, 1, p=probs)[0]
             if 'identifier' in cur_task or 'dataflow' in cur_task:
                 logger.info("Running " + cur_task)
+            else:
+                if training_state['is_early_stop'][cur_task]:
+                    training_state['skip_cnt'] += 1
+                    if training_state['skip_cnt'] > 50:
+                        logger.info('All tasks have early stopped at %d', training_state['step'])
+                        break
+                    continue
+                else:
+                    training_state['skip_cnt'] = 0
             train_dataloader = train_dataloader_dict[cur_task]
             if training_state['is_early_stop'][cur_task]:
                 training_state['skip_cnt'] += 1
