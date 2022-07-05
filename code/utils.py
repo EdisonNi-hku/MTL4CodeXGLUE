@@ -25,10 +25,10 @@ class PlainCodeDataset(torch.utils.data.Dataset):
 
 def get_src_lang_from_task(args):
     if args.task == 'summarize':
-        return args.subtask
+        return args.sub_task
     elif args.task == 'defect':
         return 'c'
-    elif args.task == 'translate' and args.subtask == 'cs-java':
+    elif args.task == 'translate' and args.sub_task == 'cs-java':
         return 'c_sharp'
     else:
         return 'java'
