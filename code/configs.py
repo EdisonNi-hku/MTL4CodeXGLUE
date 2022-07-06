@@ -104,6 +104,8 @@ def add_args(parser):
                         help='continue previous training or not')
     parser.add_argument("--aux_percentage", type=int, default=10,
                         help='percentage of auxiliary data')
+    parser.add_argument("--aux_type", type=int, default=0, choices=[0, 1, 2],
+                        help='percentage of auxiliary data')
     args = parser.parse_args()
 
     if args.task in ['summarize']:

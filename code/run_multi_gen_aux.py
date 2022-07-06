@@ -109,9 +109,17 @@ def main():
 
         # Prepare training data loader
         train_examples_data_dict = load_and_cache_multi_aux_gen_data(args, pool, tokenizer, 'train', is_sample=False)
+        if args.aux_type == 1:
+            for k in train_examples_data_dict.keys():
+                if 'identifier' in k:
+                    del train_examples_data_dict[k]
+        elif args.aux_type == 2:
+            for k in train_examples_data_dict.keys():
+                if 'dataflow' in k:
+                    del train_examples_data_dict[k]
         logger.info("Data Counts:")
         for k, v in train_examples_data_dict.items():
-            logger.info(k + ': ' + str(len(v)))
+            logger.info(k + ': ' + str(len(v[1])))
         train_data_list = [v[1] for k, v in train_examples_data_dict.items()]
         all_tasks = [k for k, v in train_examples_data_dict.items()]
         total_train_data_num = sum([len(v[0]) for k, v in train_examples_data_dict.items()])

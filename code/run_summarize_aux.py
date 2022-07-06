@@ -40,7 +40,7 @@ from utils import get_elapse_time, load_and_cache_summarize_aux_data, save_check
 from configs import add_args, set_seed, set_dist
 from run_multi_gen_cont import eval_bleu
 from code_to_ast import IdentifierCollator
-from run_multi_gen_aux import get_gradient_accumulate_step, get_bs
+from run_multi_gen_aux import get_gradient_accumulate_step
 
 cpu_cont = multiprocessing.cpu_count()
 
@@ -49,6 +49,26 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
 WORKER_NUM = 0
+
+
+def get_bs(cur_task, model_tag, gas):
+    task = cur_task.split('_')[0]
+    sub_task = cur_task.split('_')[-1]
+    if 'codet5_small' in model_tag:
+        bs = 32
+        if task == 'summarize' or task == 'translate' or (task == 'refine' and sub_task == 'small'):
+            bs = 64
+    else:
+        # codet5_base
+        bs = 32
+        if task == 'translate':
+            bs = 24
+        elif task == 'summarize':
+            bs = 48
+        elif task in ['identifier', 'dataflow']:
+            bs = 8
+    bs = int(bs / gas)
+    return bs
 
 
 def main():
@@ -78,9 +98,17 @@ def main():
 
         # Prepare training data loader
         train_examples_data_dict = load_and_cache_summarize_aux_data(args, pool, tokenizer, 'train', is_sample=False)
+        if args.aux_type == 1:
+            for k in train_examples_data_dict.keys():
+                if 'identifier' in k:
+                    del train_examples_data_dict[k]
+        elif args.aux_type == 2:
+            for k in train_examples_data_dict.keys():
+                if 'dataflow' in k:
+                    del train_examples_data_dict[k]
         logger.info("Data Counts:")
         for k, v in train_examples_data_dict.items():
-            logger.info(k + ': ' + str(len(v)))
+            logger.info(k + ': ' + str(len(v[1])))
         train_data_list = [v[1] for k, v in train_examples_data_dict.items()]
         all_tasks = [k for k, v in train_examples_data_dict.items()]
         total_train_data_num = sum([len(v[0]) for k, v in train_examples_data_dict.items()])

@@ -22,6 +22,11 @@ GRADIENT_STEP=${17}
 EVAL_BS=${18}
 AUX_PER=${19}
 TEST=${20}
+AUX_TYPE=${21}
+
+if [[ $AUX_TYPE != 0 ]]; then
+  AUX_NAME='_'${AUX_TYPE}
+fi
 
 if [[ $TEST == 1 ]]; then
   TEST_AUG='--do_test'
@@ -38,7 +43,7 @@ fi
 
 EFF_BS=$((${BS}*${GRADIENT_STEP}))
 if [[ ${TASK} == 'multi_task' || ${TASK} == 'multi_auxiliary' || ${TASK} == 'summarize_auxiliary' ]]; then
-  FULL_MODEL_TAG=${MODEL_TAG}_${DATA_TAG}_lr${LR}_s${21}_a${AUX_PER}
+  FULL_MODEL_TAG=${MODEL_TAG}_${DATA_TAG}_lr${LR}_s${22}_a${AUX_PER}${AUX_NAME}
 else
   FULL_MODEL_TAG=${MODEL_TAG}_${DATA_TAG}_lr${LR}_bs${EFF_BS}_src${SRC_LEN}_trg${TRG_LEN}_pat${PATIENCE}_e${EPOCH}
 fi
@@ -90,17 +95,17 @@ fi
 
 if [[ ${TASK} == 'multi_task' ]]; then
   RUN_FN=${WORKDIR}/run_multi_gen_cont.py
-  MULTI_TASK_AUG='--max_steps '${21}' --save_steps '${22}' --log_steps '${23}
+  MULTI_TASK_AUG='--max_steps '${22}' --save_steps '${23}' --log_steps '${24}' --add_task_prefix --add_lang_ids'
 elif [[ ${TASK} == 'clone' ]]; then
   RUN_FN=${WORKDIR}/run_clone_cont.py
 elif [[ ${TASK} == 'defect' ]] && [[ ${MODEL_TYPE} == 'roberta' ||  ${MODEL_TYPE} == 'bart' ]]; then
   RUN_FN=${WORKDIR}/run_defect_cont.py
 elif [[ ${TASK} == 'multi_auxiliary' ]]; then
   RUN_FN=${WORKDIR}/run_multi_gen_aux.py
-  MULTI_TASK_AUG='--max_steps '${21}' --save_steps '${22}' --log_steps '${23}
+  MULTI_TASK_AUG='--max_steps '${22}' --save_steps '${23}' --log_steps '${24}' --add_task_prefix --add_lang_ids --aux_type'${AUX_TYPE}
   elif [[ ${TASK} == 'summarize_auxiliary' ]]; then
   RUN_FN=${WORKDIR}/run_summarize_aux.py
-  MULTI_TASK_AUG='--max_steps '${21}' --save_steps '${22}' --log_steps '${23}
+  MULTI_TASK_AUG='--max_steps '${22}' --save_steps '${23}' --log_steps '${24}' --add_task_prefix --add_lang_ids --aux_type'${AUX_TYPE}
 else
   RUN_FN=${WORKDIR}/run_gen_cont.py
 fi
@@ -110,7 +115,7 @@ if [[ ${LOAD_PATH} != 'no' ]]; then
 fi
 
 
-CUDA_VISIBLE_DEVICES=${GPU} \
+cmd="CUDA_VISIBLE_DEVICES=${GPU} \
   python ${RUN_FN}  \
   ${TEST_AUG} ${MULTI_TASK_AUG} --gradient_accumulation_steps ${GRADIENT_STEP} \
   --task ${TASK} --sub_task ${SUB_TASK} --model_type ${MODEL_TYPE} --data_num ${DATA_NUM} --aux_percentage ${AUX_PER} \
@@ -119,4 +124,7 @@ CUDA_VISIBLE_DEVICES=${GPU} \
   --cache_path ${CACHE_DIR}  --output_dir ${OUTPUT_DIR}  --summary_dir ${SUMMARY_DIR} \
   --save_last_checkpoints --always_save_model --res_dir ${RES_DIR} --res_fn ${RES_FN} ${LOAD_ARG} \
   --train_batch_size ${BS} --eval_batch_size ${EVAL_BS} --max_source_length ${SRC_LEN} --max_target_length ${TRG_LEN} \
-  2>&1 | tee ${LOG}
+  2>&1 | tee ${LOG}"
+
+echo ${cmd}
+eval ${cmd}

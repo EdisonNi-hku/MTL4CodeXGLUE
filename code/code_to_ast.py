@@ -4,6 +4,7 @@ import json
 import random
 import math
 import torch
+import logging
 import multiprocessing
 from transformers import RobertaTokenizer, T5Tokenizer
 from collections import OrderedDict
@@ -26,6 +27,7 @@ dfg_function = {
 }
 
 root_dir = os.path.dirname(__file__)
+logger = logging.getLogger(__name__)
 
 
 def get_data_flow(code, parser, lang):
@@ -231,7 +233,7 @@ class IdentifierCollator(object):
         task = self.cur_task.split('_')[0]
         sub_task = self.cur_task.split('_')[-1]
         lang = get_src_lang_from_task(task, sub_task)
-        codes = [item[0] for item in batch]
+        codes = batch
         masked_codes = []
         targets = []
         for code in codes:
