@@ -36,7 +36,7 @@ from torch.utils.data import DataLoader, SequentialSampler, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
 from transformers import AdamW, get_linear_schedule_with_warmup
 from models import build_or_load_gen_model
-from utils import get_elapse_time, load_and_cache_summarize_aux_data, save_checkpoint
+from utils import get_elapse_time, load_and_cache_single_task_aux_data, save_checkpoint
 from configs import add_args, set_seed, set_dist
 from run_multi_gen_cont import eval_bleu
 from code_to_ast import IdentifierCollator
@@ -79,6 +79,13 @@ def main():
 
     set_dist(args)
     set_seed(args)
+    if 'summarize' in args.task:
+        single_task = 'summarize'
+    elif 'translate' in args.task:
+        single_task = 'translate'
+    else:
+        raise ValueError('undefined task')
+
     config, model, tokenizer = build_or_load_gen_model(args)
     if args.cont_model_path is not None:
         model_file = os.path.join(args.cont_model_path, "pytorch_model.bin")
@@ -97,7 +104,7 @@ def main():
             tb_writer = SummaryWriter(summary_fn)
 
         # Prepare training data loader
-        train_examples_data_dict = load_and_cache_summarize_aux_data(args, pool, tokenizer, 'train', is_sample=False)
+        train_examples_data_dict = load_and_cache_single_task_aux_data(args, single_task, pool, tokenizer, 'train', is_sample=False)
         if args.aux_type == 1:
             for k in train_examples_data_dict.keys():
                 if 'identifier' in k:
@@ -193,7 +200,7 @@ def main():
         for cur_task in all_tasks:
             task = cur_task.split('_')[0]
             if task == 'summarize':
-                patience_pairs.append((cur_task, 2))
+                patience_pairs.append((cur_task, 5))
             elif task == 'translate':
                 patience_pairs.append((cur_task, 5))
             elif task == 'refine':
@@ -307,7 +314,7 @@ def main():
                 if 'dev_loss' in dev_dataset:
                     eval_examples_data_dict = dev_dataset['dev_loss']
                 else:
-                    eval_examples_data_dict = load_and_cache_summarize_aux_data(args, pool, tokenizer, 'dev')
+                    eval_examples_data_dict = load_and_cache_single_task_aux_data(args, single_task, pool, tokenizer, 'dev')
                     dev_dataset['dev_loss'] = eval_examples_data_dict
 
                 for cur_task in eval_examples_data_dict.keys():
@@ -385,8 +392,8 @@ def main():
                             logger.info("Save the best ppl model into %s", output_model_file)
 
                 if args.do_eval_bleu:
-                    eval_examples_data_dict = load_and_cache_summarize_aux_data(args, pool, tokenizer, 'dev',
-                                                                            only_src=True, is_sample=True)
+                    eval_examples_data_dict = load_and_cache_single_task_aux_data(args, single_task, pool, tokenizer, 'dev',
+                                                                                  only_src=True, is_sample=True)
                     for cur_task in eval_examples_data_dict.keys():
                         if training_state['is_early_stop'][cur_task]:
                             continue
@@ -455,7 +462,7 @@ def main():
     if args.do_test:
         logger.info("  " + "***** Testing *****")
         logger.info("  Batch size = %d", args.eval_batch_size)
-        eval_examples_data_dict = load_and_cache_summarize_aux_data(args, pool, tokenizer, 'test', only_src=True)
+        eval_examples_data_dict = load_and_cache_single_task_aux_data(args, single_task, pool, tokenizer, 'test', only_src=True)
         all_tasks = list(eval_examples_data_dict.keys())
         for cur_task in all_tasks:
             summary_dir = os.path.join(args.output_dir, 'summary')

@@ -102,10 +102,10 @@ elif [[ ${TASK} == 'defect' ]] && [[ ${MODEL_TYPE} == 'roberta' ||  ${MODEL_TYPE
   RUN_FN=${WORKDIR}/run_defect_cont.py
 elif [[ ${TASK} == 'multi_auxiliary' ]]; then
   RUN_FN=${WORKDIR}/run_multi_gen_aux.py
-  MULTI_TASK_AUG='--max_steps '${22}' --save_steps '${23}' --log_steps '${24}' --add_task_prefix --add_lang_ids --aux_type'${AUX_TYPE}
+  MULTI_TASK_AUG='--max_steps '${22}' --save_steps '${23}' --log_steps '${24}' --add_task_prefix --add_lang_ids --aux_type '${AUX_TYPE}
   elif [[ ${TASK} == 'summarize_auxiliary' ]]; then
   RUN_FN=${WORKDIR}/run_summarize_aux.py
-  MULTI_TASK_AUG='--max_steps '${22}' --save_steps '${23}' --log_steps '${24}' --add_task_prefix --add_lang_ids --aux_type'${AUX_TYPE}
+  MULTI_TASK_AUG='--max_steps '${22}' --save_steps '${23}' --log_steps '${24}' --add_task_prefix --add_lang_ids --aux_type '${AUX_TYPE}
 else
   RUN_FN=${WORKDIR}/run_gen_cont.py
 fi

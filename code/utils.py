@@ -280,7 +280,7 @@ def load_and_cache_multi_aux_gen_data(args, pool, tokenizer, split_tag, only_src
     return examples_data_dict
 
 
-def load_and_cache_summarize_aux_data(args, pool, tokenizer, split_tag, only_src=False, is_sample=False):
+def load_and_cache_single_task_aux_data(args, single_task, pool, tokenizer, split_tag, only_src=False, is_sample=False):
     cache_fn = os.path.join(args.cache_path, split_tag)
     if os.path.exists(cache_fn) and not is_sample:
         logger.info("Load cache data from %s", cache_fn)
@@ -288,7 +288,7 @@ def load_and_cache_summarize_aux_data(args, pool, tokenizer, split_tag, only_src
     else:
         examples_data_dict = {}
 
-        task_list = ['summarize', 'dataflow', 'identifier']
+        task_list = [single_task, 'dataflow', 'identifier']
         for task in task_list:
             if task in ['identifier', 'dataflow'] and split_tag != 'train':
                 continue
@@ -296,6 +296,9 @@ def load_and_cache_summarize_aux_data(args, pool, tokenizer, split_tag, only_src
             if task == 'summarize':
                 args.max_source_length = 256
                 args.max_target_length = 128
+            elif task == 'translate':
+                args.max_source_length = 320
+                args.max_target_length = 256
             elif task in ['identifier', 'dataflow']:
                 args.max_source_length = 512
                 args.max_target_length = 512
