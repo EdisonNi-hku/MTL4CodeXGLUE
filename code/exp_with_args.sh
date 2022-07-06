@@ -31,8 +31,12 @@ elif [[ $PREFIX == 2 ]]; then
   PREFIX_AUG='--add_task_prefix --add_lang_ids'
 fi
 
+if [[ $PREFIX != 0 ]]; then
+  PREFIX_NAME='_prefix'${PREFIX}
+fi
+
 if [[ $AUX_TYPE != 0 ]]; then
-  AUX_NAME='_'${AUX_TYPE}
+  AUX_NAME='_aux'${AUX_TYPE}
 fi
 
 if [[ $TEST == 1 ]]; then
@@ -50,7 +54,7 @@ fi
 
 EFF_BS=$((${BS}*${GRADIENT_STEP}))
 if [[ ${TASK} == 'multi_task' || ${TASK} == 'multi_auxiliary' || ${TASK} == 'summarize_auxiliary' ]]; then
-  FULL_MODEL_TAG=${MODEL_TAG}_${DATA_TAG}_lr${LR}_s${23}_a${AUX_PER}${AUX_NAME}
+  FULL_MODEL_TAG=${MODEL_TAG}_${DATA_TAG}_lr${LR}_s${23}_a${AUX_PER}${AUX_NAME}${PREFIX_NAME}
 else
   FULL_MODEL_TAG=${MODEL_TAG}_${DATA_TAG}_lr${LR}_bs${EFF_BS}_src${SRC_LEN}_trg${TRG_LEN}_pat${PATIENCE}_e${EPOCH}
 fi
