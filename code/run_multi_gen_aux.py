@@ -147,6 +147,7 @@ def main():
                     train_dataloader = DataLoader(train_data, sampler=train_sampler, collate_fn=identifier_collator,
                                                   batch_size=get_bs(cur_task, args.model_name_or_path,
                                                                     args.gradient_accumulation_steps))
+                train_dataloader_dict[cur_task] = train_dataloader
             else:
                 if args.data_num == -1:
                     train_dataloader = DataLoader(train_data, sampler=train_sampler,
@@ -156,7 +157,7 @@ def main():
                     train_dataloader = DataLoader(train_data, sampler=train_sampler,
                                                   batch_size=get_bs(cur_task, args.model_name_or_path, args.gradient_accumulation_steps))
 
-            train_dataloader_dict[cur_task] = cycle(train_dataloader)
+                train_dataloader_dict[cur_task] = cycle(train_dataloader)
 
         # Prepare optimizer and schedule (linear warmup and decay)
         no_decay = ['bias', 'LayerNorm.weight']
