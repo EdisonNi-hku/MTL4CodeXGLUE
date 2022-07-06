@@ -127,6 +127,7 @@ def main():
             fa_dict[cur_task] = open(os.path.join(summary_dir, '{}_summary.log'.format(cur_task)), 'a+')
 
         train_dataloader_dict = dict()
+        train_generator_dict = dict()
         for train_data, cur_task in zip(train_data_list, all_tasks):
             if args.local_rank == -1:
                 train_sampler = RandomSampler(train_data)
@@ -141,7 +142,6 @@ def main():
                 else:
                     train_dataloader = DataLoader(train_data, sampler=train_sampler, collate_fn=identifier_collator,
                                                   batch_size=get_bs(cur_task, args.model_name_or_path, args.gradient_accumulation_steps))
-                train_dataloader_dict[cur_task] = train_dataloader
             else:
                 if args.data_num == -1:
                     train_dataloader = DataLoader(train_data, sampler=train_sampler,
@@ -151,7 +151,8 @@ def main():
                     train_dataloader = DataLoader(train_data, sampler=train_sampler,
                                                   batch_size=get_bs(cur_task, args.model_name_or_path, args.gradient_accumulation_steps))
 
-                train_dataloader_dict[cur_task] = cycle(train_dataloader)
+            train_dataloader_dict[cur_task] = train_dataloader
+            train_generator_dict[cur_task] = iter(train_dataloader)
 
         # Prepare optimizer and schedule (linear warmup and decay)
         no_decay = ['bias', 'LayerNorm.weight']
@@ -232,13 +233,18 @@ def main():
                     continue
                 else:
                     training_state['skip_cnt'] = 0
-            train_dataloader = train_dataloader_dict[cur_task]
-
+            train_generator = train_generator_dict[cur_task]
 
             gas = get_gradient_accumulate_step(args, cur_task)
             for _ in range(gas):
                 training_state['step'] += 1
-                batch = next(train_dataloader)
+                try:
+                    batch = next(train_generator)
+                except StopIteration:
+                    # restart the iterator
+                    train_generator_dict[cur_task] = iter(train_dataloader_dict[cur_task])
+                    train_generator = train_generator_dict[cur_task]
+                    batch = next(train_generator)
 
                 model.train()
                 batch = tuple(t.to(args.device) for t in batch)

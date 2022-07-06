@@ -15,13 +15,12 @@ logger = logging.getLogger(__name__)
 class PlainCodeDataset(torch.utils.data.Dataset):
     def __init__(self, codes):
         self.codes = codes
-        self.real_length = len(codes)
 
     def __getitem__(self, idx):
-        return self.codes[idx % self.real_length]
+        return self.codes[idx]
 
     def __len__(self):
-        return np.iinfo(np.int64).max
+        return len(self.codes)
 
 
 def get_src_lang_from_task(task, sub_task):
