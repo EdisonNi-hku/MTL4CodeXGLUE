@@ -191,7 +191,7 @@ if __name__ == '__main__':
     parser.add_argument("--aux_type", type=int, default=0, choices=[0, 1, 2],
                         help='what auxiliary tasks to use: 0 for both, 1 for dataflow prediction,'
                              ' 2 for identifier denoising')
-    parser.add_argument("--prefix", type=int, default=0, choices=[0, 1, 2],
+    parser.add_argument("--prefix", type=int, default=0, choices=[0, 1, 2, 3],
                         help='0 for no prefix, 1 for source prefix, 2 for src & tgt prefix')
     args = parser.parse_args()
 
