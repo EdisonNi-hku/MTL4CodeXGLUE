@@ -232,6 +232,8 @@ class IdentifierCollator(object):
     def __call__(self, batch):
         task = self.cur_task.split('_')[0]
         sub_task = self.cur_task.split('_')[-1]
+        if sub_task == 'sharp':
+            sub_task = 'c_sharp'
         lang = get_src_lang_from_task(task, sub_task)
         codes = batch
         masked_codes = []
