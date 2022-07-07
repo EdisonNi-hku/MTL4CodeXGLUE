@@ -29,6 +29,8 @@ if [[ $PREFIX == 1 ]]; then
   PREFIX_AUG='--add_task_prefix'
 elif [[ $PREFIX == 2 ]]; then
   PREFIX_AUG='--add_task_prefix --add_lang_ids'
+elif [[ $PREFIX == 3 ]]; then
+  PREFIX_AUG='--add_lang_ids'
 fi
 
 if [[ $PREFIX != 0 ]]; then

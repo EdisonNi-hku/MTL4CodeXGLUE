@@ -473,9 +473,6 @@ def convert_src_tgt_to_features(item):
         target_str = add_lang_by_task(tgt, task, sub_task)
 
     target_str = target_str.replace('</s>', '<unk>')
-    if idx == 0:
-        logger.info("Identifier denoising example source: " + source_str)
-        logger.info("Identifier denoising example target: " + target_str)
     target_ids = tokenizer.encode(target_str, max_length=512, padding='max_length',
                                   truncation=True)
     assert target_ids.count(tokenizer.eos_token_id) == 1

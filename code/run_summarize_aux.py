@@ -105,14 +105,17 @@ def main():
 
         # Prepare training data loader
         train_examples_data_dict = load_and_cache_single_task_aux_data(args, single_task, pool, tokenizer, 'train', is_sample=False)
+        to_delete = []
         if args.aux_type == 1:
             for k in train_examples_data_dict.keys():
                 if 'identifier' in k:
-                    del train_examples_data_dict[k]
+                    to_delete.append(k)
         elif args.aux_type == 2:
             for k in train_examples_data_dict.keys():
                 if 'dataflow' in k:
-                    del train_examples_data_dict[k]
+                    to_delete.append(k)
+        for k in to_delete:
+            del train_examples_data_dict[k]
         logger.info("Data Counts:")
         for k, v in train_examples_data_dict.items():
             logger.info(k + ': ' + str(len(v[1])))
@@ -222,9 +225,7 @@ def main():
         bar = tqdm(total=args.max_steps - training_state['global_step'], desc="Training")
         while True:
             cur_task = np.random.choice(all_tasks, 1, p=probs)[0]
-            if 'identifier' in cur_task or 'dataflow' in cur_task:
-                logger.info("Running " + cur_task)
-            else:
+            if 'identifier' not in cur_task and 'dataflow' not in cur_task:
                 if training_state['is_early_stop'][cur_task]:
                     training_state['skip_cnt'] += 1
                     if training_state['skip_cnt'] > 50:
