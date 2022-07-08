@@ -37,8 +37,8 @@ def add_args(parser):
                         help="The output directory where the model predictions and checkpoints will be written.")
     parser.add_argument("--load_model_path", default=None, type=str,
                         help="Path to trained model: Should contain the .bin files")
-    parser.add_argument("--cont_model_path", default=None, type=str,
-                        help="Path to continue training")
+    parser.add_argument("--cont", default=False, action='store_true',
+                        help="Whether to continue training")
     ## Other parameters
     parser.add_argument("--train_filename", default=None, type=str,
                         help="The train filename. Should contain the .jsonl files for this task.")
