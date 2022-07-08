@@ -462,11 +462,11 @@ def main():
                                     "[%d %s] Early stop as bleu/em does not increase for %d eval steps, takes %s" %
                                     (training_state['global_step'], cur_task, training_state['not_bleu_em_inc_cnt'][cur_task], get_elapse_time(t0)))
 
-                    logger.info("***** CUDA.empty_cache() *****")
-                    torch.cuda.empty_cache()
-                if training_state['global_step'] >= args.max_steps - starting_step:
-                    logger.info("Reach the max step: %d", args.max_steps)
-                    break
+                logger.info("***** CUDA.empty_cache() *****")
+                torch.cuda.empty_cache()
+            if training_state['global_step'] >= args.max_steps - starting_step:
+                logger.info("Reach the max step: %d", args.max_steps)
+                break
 
         if args.local_rank in [-1, 0] and args.data_num == -1:
             tb_writer.close()
