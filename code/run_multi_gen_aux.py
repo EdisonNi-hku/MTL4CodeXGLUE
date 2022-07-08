@@ -228,7 +228,8 @@ def main():
         probs = [x ** 0.7 for x in probs]
         probs = [x / sum(probs) for x in probs]
 
-        bar = tqdm(total=args.max_steps - training_state['global_step'], desc="Training")
+        starting_step = training_state['global_step']
+        bar = tqdm(total=args.max_steps - starting_step, desc="Training")
         while True:
             cur_task = np.random.choice(all_tasks, 1, p=probs)[0]
             if 'identifier' not in cur_task and 'dataflow' not in cur_task:
@@ -463,7 +464,7 @@ def main():
 
                     logger.info("***** CUDA.empty_cache() *****")
                     torch.cuda.empty_cache()
-                if training_state['global_step'] >= args.max_steps - training_state['global_step']:
+                if training_state['global_step'] >= args.max_steps - starting_step:
                     logger.info("Reach the max step: %d", args.max_steps)
                     break
 
