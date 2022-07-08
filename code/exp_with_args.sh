@@ -17,7 +17,7 @@ WARMUP=${12}
 MODEL_DIR=${13}
 SUMMARY_DIR=${14}
 RES_FN=${15}
-LOAD_PATH=${16}
+CONTINUE=${16}
 GRADIENT_STEP=${17}
 EVAL_BS=${18}
 AUX_PER=${19}
@@ -123,8 +123,8 @@ else
   RUN_FN=${WORKDIR}/run_gen_cont.py
 fi
 
-if [[ ${LOAD_PATH} != 'no' ]]; then
-  LOAD_ARG='--cont_model_path '${LOAD_PATH}
+if [[ ${CONTINUE} == 0 ]]; then
+  LOAD_ARG='--cont'
 fi
 
 
