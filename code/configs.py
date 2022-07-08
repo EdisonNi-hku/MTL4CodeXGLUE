@@ -37,8 +37,6 @@ def add_args(parser):
                         help="The output directory where the model predictions and checkpoints will be written.")
     parser.add_argument("--load_model_path", default=None, type=str,
                         help="Path to trained model: Should contain the .bin files")
-    parser.add_argument("--cont", default=False, action='store_true',
-                        help="Whether to continue training")
     ## Other parameters
     parser.add_argument("--train_filename", default=None, type=str,
                         help="The train filename. Should contain the .jsonl files for this task.")
@@ -100,8 +98,7 @@ def add_args(parser):
                         help="For distributed training: local_rank")
     parser.add_argument('--seed', type=int, default=1234,
                         help="random seed for initialization")
-    parser.add_argument("--cont", type=int, default=0,
-                        help='continue previous training or not')
+    parser.add_argument("--cont", default=False, action='store_true')
     parser.add_argument("--aux_percentage", type=int, default=10,
                         help='percentage of auxiliary data')
     parser.add_argument("--aux_type", type=int, default=0, choices=[0, 1, 2],
