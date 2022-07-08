@@ -123,7 +123,7 @@ else
   RUN_FN=${WORKDIR}/run_gen_cont.py
 fi
 
-if [[ ${CONTINUE} == 0 ]]; then
+if [[ ${CONTINUE} != 0 ]]; then
   LOAD_ARG='--cont'
 fi
 
