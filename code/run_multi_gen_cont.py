@@ -528,7 +528,7 @@ def main():
 
                 logger.info("***** CUDA.empty_cache() *****")
                 torch.cuda.empty_cache()
-            if training_state['global_step'] >= args.max_steps - starting_step:
+            if training_state['global_step'] >= args.max_steps:
                 logger.info("Reach the max step: %d", args.max_steps)
                 break
 
