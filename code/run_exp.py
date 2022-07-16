@@ -126,16 +126,23 @@ def run_one_exp(args):
 
 def run_multi_task_exp(args):
     # Total train data num = 1149722 (for all five tasks)
-    if 'codet5_small' in args.model_tag:
-        bs, lr, max_steps, save_steps, log_steps = 64, 5, 600000, 20000, 100
-    elif args.task == 'multi_task':
-        bs, lr, max_steps, save_steps, log_steps = 32, 5, 800000, 20000, 100
-    elif args.task == 'multi_auxiliary':
-        bs, lr, max_steps, save_steps, log_steps = 32, 5, 1000000, 20000, 100
-    elif args.task == 'summarize_auxiliary':
-        bs, lr, max_steps, save_steps, log_steps = 32, 5, 100000, 6500, 100
+    if args.free:
+        if 'codet5_small' in args.model_tag:
+            bs = 64
+        else:
+            bs = 32
+        lr, max_steps, save_steps, log_steps = 5, args.max_step, args.save_step, 100
     else:
-        raise ValueError("setting not defined")
+        if 'codet5_small' in args.model_tag:
+            bs, lr, max_steps, save_steps, log_steps = 64, 5, 600000, 20000, 100
+        elif args.task == 'multi_task':
+            bs, lr, max_steps, save_steps, log_steps = 32, 5, 800000, 20000, 100
+        elif args.task == 'multi_auxiliary':
+            bs, lr, max_steps, save_steps, log_steps = 32, 5, 1000000, 20000, 100
+        elif args.task == 'summarize_auxiliary':
+            bs, lr, max_steps, save_steps, log_steps = 32, 5, 100000, 6500, 100
+        else:
+            raise ValueError("setting not defined")
     bs = int(bs / args.gas)
     if args.data_num != -1:
         max_steps, save_steps, log_steps = 1000, 200, 50
@@ -194,6 +201,9 @@ if __name__ == '__main__':
                              ' 2 for identifier denoising')
     parser.add_argument("--prefix", type=int, default=0, choices=[0, 1, 2, 3],
                         help='0 for no prefix, 1 for source prefix, 2 for src & tgt prefix')
+    parser.add_argument("--free", default=False, action='store_true')
+    parser.add_argument("--max_step", type=int, default=800000)
+    parser.add_argument("--save_step", type=int, default=20000)
     args = parser.parse_args()
 
     if not os.path.exists(args.res_dir):
