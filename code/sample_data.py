@@ -36,7 +36,7 @@ if __name__ == '__main__':
                 to_copy = [dev_fn, test_fn]
                 to_sample = [train_fn]
             else:
-                to_copy = dev_fn.split(',').extent(test_fn.split(','))
+                to_copy = dev_fn.split(',').extend(test_fn.split(','))
                 to_sample = train_fn.split(',')
 
             for fn in to_copy:
