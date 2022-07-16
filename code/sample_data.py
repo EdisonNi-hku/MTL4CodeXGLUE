@@ -25,7 +25,7 @@ if __name__ == '__main__':
         else:
             sub_tasks = ['none']
         for sub_task in sub_tasks:
-            if sub_task != 'none' or task != 'translate':
+            if sub_task != 'none' and task != 'translate':
                 sub_task_data_dir = os.path.join(task_data_dir, sub_task)
                 os.mkdir(sub_task_data_dir)
             else:
@@ -45,11 +45,15 @@ if __name__ == '__main__':
             for fn in to_sample:
                 new_fn = fn.replace('data/', save_dir + '/')
                 with open(fn, 'r') as f:
-                    lines = f.readline()
+                    lines = f.readlines()
                     lines = [line.strip() for line in lines]
+                    print(fn)
+                    print(len(lines))
 
                 random.seed(1234)
                 lines = random.sample(lines, math.ceil((args.percentage / 100) * len(lines)))
+                print(new_fn)
+                print(len(lines))
 
                 with open(new_fn, 'w') as f:
                     for line in lines:
