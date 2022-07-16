@@ -32,7 +32,7 @@ if __name__ == '__main__':
                 sub_task_data_dir = task_data_dir
 
             train_fn, dev_fn, test_fn = get_filenames('data', task, sub_task)
-            if task != 'translate':
+            if task not in ['translate', 'refine']:
                 to_copy = [dev_fn, test_fn]
                 to_sample = [train_fn]
             else:
