@@ -460,7 +460,7 @@ if __name__ == '__main__':
         code_dict = torch.load(cache_fn)
     else:
         code_dict = {}
-        tasks = ['summarize', 'refine', 'translate', 'clone']
+        tasks = ['summarize', 'refine', 'translate']
         for cur_task in tasks:
             if cur_task == 'summarize':
                 subtasks = ['python', 'java', 'javascript', 'php', 'go', 'ruby']
