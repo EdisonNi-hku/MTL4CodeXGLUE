@@ -449,7 +449,6 @@ if __name__ == '__main__':
     parser.add_argument("--cache_file", type=str, default='code_cache')
     parser.add_argument("--save_dir", type=str, default='df_10')
     parser.add_argument("--data_root", type=str, default='data')
-    parser.add_argument("--percentage", type=int, default=10)
     args = parser.parse_args()
 
     os.mkdir(args.save_dir)
@@ -473,7 +472,6 @@ if __name__ == '__main__':
                 subtasks = ['none']
             for sub in subtasks:
                 code = load_code(data_root=args.data_root, task=cur_task, subtask=sub)
-                code = random.sample(code, math.ceil((args.percentage / 100) * len(code)))
                 code_dict['{}_{}'.format(cur_task, sub)] = code
 
         torch.save(code_dict, cache_fn)
