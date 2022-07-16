@@ -1,5 +1,4 @@
 WORKDIR="/cluster/work/sachan/leonhard/jingwei/ni2/MTL4CodeXGLUE/code"
-DATADIR="/cluster/work/sachan/leonhard/jingwei/ni2/MTL4CodeXGLUE/data"
 export PYTHONPATH=$WORKDIR
 
 TASK=${1}
@@ -24,6 +23,9 @@ AUX_PER=${19}
 TEST=${20}
 AUX_TYPE=${21}
 PREFIX=${22}
+DATA=${23}
+
+DATADIR="/cluster/work/sachan/leonhard/jingwei/ni2/MTL4CodeXGLUE/${DATA}"
 
 if [[ $PREFIX == 1 ]]; then
   PREFIX_AUG='--add_task_prefix'
@@ -56,7 +58,7 @@ fi
 
 EFF_BS=$((${BS}*${GRADIENT_STEP}))
 if [[ ${TASK} == 'multi_task' || ${TASK} == 'multi_auxiliary' || ${TASK} == 'summarize_auxiliary' ]]; then
-  FULL_MODEL_TAG=${MODEL_TAG}_${DATA_TAG}_lr${LR}_s${23}_a${AUX_PER}${AUX_NAME}${PREFIX_NAME}
+  FULL_MODEL_TAG=${MODEL_TAG}_${DATA_TAG}_lr${LR}_s${24}_a${AUX_PER}${AUX_NAME}${PREFIX_NAME}
 else
   FULL_MODEL_TAG=${MODEL_TAG}_${DATA_TAG}_lr${LR}_bs${EFF_BS}_src${SRC_LEN}_trg${TRG_LEN}_pat${PATIENCE}_e${EPOCH}
 fi
@@ -108,17 +110,17 @@ fi
 
 if [[ ${TASK} == 'multi_task' ]]; then
   RUN_FN=${WORKDIR}/run_multi_gen_cont.py
-  MULTI_TASK_AUG='--max_steps '${23}' --save_steps '${24}' --log_steps '${25}
+  MULTI_TASK_AUG='--max_steps '${24}' --save_steps '${25}' --log_steps '${26}
 elif [[ ${TASK} == 'clone' ]]; then
   RUN_FN=${WORKDIR}/run_clone_cont.py
 elif [[ ${TASK} == 'defect' ]] && [[ ${MODEL_TYPE} == 'roberta' ||  ${MODEL_TYPE} == 'bart' ]]; then
   RUN_FN=${WORKDIR}/run_defect_cont.py
 elif [[ ${TASK} == 'multi_auxiliary' ]]; then
   RUN_FN=${WORKDIR}/run_multi_gen_aux.py
-  MULTI_TASK_AUG='--max_steps '${23}' --save_steps '${24}' --log_steps '${25}' --aux_type '${AUX_TYPE}
+  MULTI_TASK_AUG='--max_steps '${24}' --save_steps '${25}' --log_steps '${26}' --aux_type '${AUX_TYPE}
   elif [[ ${TASK} == 'summarize_auxiliary' ]]; then
   RUN_FN=${WORKDIR}/run_summarize_aux.py
-  MULTI_TASK_AUG='--max_steps '${23}' --save_steps '${24}' --log_steps '${25}' --aux_type '${AUX_TYPE}
+  MULTI_TASK_AUG='--max_steps '${24}' --save_steps '${25}' --log_steps '${26}' --aux_type '${AUX_TYPE}
 else
   RUN_FN=${WORKDIR}/run_gen_cont.py
 fi

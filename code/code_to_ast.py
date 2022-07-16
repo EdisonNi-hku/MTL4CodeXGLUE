@@ -10,6 +10,7 @@ from transformers import RobertaTokenizer, T5Tokenizer
 from collections import OrderedDict
 from utils import get_filenames, get_src_lang_from_task, convert_src_tgt_to_features
 from tqdm import tqdm
+from argparse import ArgumentParser
 from evaluator.CodeBLEU.parser import DFG_python, DFG_java, DFG_ruby, DFG_go, DFG_php, DFG_javascript, DFG_csharp
 from evaluator.CodeBLEU.parser import (remove_comments_and_docstrings,
                                        tree_to_token_index,
@@ -387,7 +388,7 @@ def code2ast(code_dict):
     pool.close()
 
 
-def code2df(code_dict):
+def code2df(code_dict, args):
     cpu_count = multiprocessing.cpu_count()
     pool = multiprocessing.Pool(cpu_count)
     count = {}
@@ -433,7 +434,7 @@ def code2df(code_dict):
                 filter_code.append(code_list[i])
                 filter_df.append(df_list[i])
         filtered_data = [{'code': code, 'dataflow': df} for code, df in zip(filter_code, filter_df)]
-        with open('df/' + '{}_{}'.format(task, subtask) + '.filtered.jsonl', 'w') as f:
+        with open(args.save_dir + '/{}_{}'.format(task, subtask) + '.filtered.jsonl', 'w') as f:
             for d in filtered_data:
                 json.dump(d, f)
                 f.write('\n')
@@ -444,10 +445,17 @@ def code2df(code_dict):
 
 
 if __name__ == '__main__':
+    parser = ArgumentParser()
+    parser.add_argument("--cache_file", type=str, default='code_cache')
+    parser.add_argument("--save_dir", type=str, default='df_10')
+    parser.add_argument("--data_root", type=str, default='data')
+    parser.add_argument("--percentage", type=int, default=10)
+    args = parser.parse_args()
+
     codet5_tokenizer = RobertaTokenizer.from_pretrained('Salesforce/codet5-base', cache_dir='cache', local_files_only=True)
     t5_tokenizer = T5Tokenizer.from_pretrained('t5-base', cache_dir='cache', local_files_only=True)
     random.seed(1234)
-    cache_fn = root_dir + '/code_cache'
+    cache_fn = root_dir + '/' + args.cache_file
     if os.path.exists(cache_fn):
         code_dict = torch.load(cache_fn)
     else:
@@ -463,13 +471,13 @@ if __name__ == '__main__':
             else:
                 subtasks = ['none']
             for sub in subtasks:
-                code = load_code(data_root='data', task=cur_task, subtask=sub)
-                code = random.sample(code, math.ceil(0.1 * len(code)))
+                code = load_code(data_root=args.data_root, task=cur_task, subtask=sub)
+                code = random.sample(code, math.ceil((args.percentage / 100) * len(code)))
                 code_dict['{}_{}'.format(cur_task, sub)] = code
 
         torch.save(code_dict, cache_fn)
 
-    code2df(code_dict)
+    code2df(code_dict, args)
 
 
 
