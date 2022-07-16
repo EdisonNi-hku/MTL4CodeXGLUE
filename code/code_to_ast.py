@@ -408,7 +408,7 @@ def code2df(code_dict, args):
         items = [(code, lang) for code in code_list]
         df_list = pool.map(code_to_dataflow_string, tqdm(items, total=len(items), desc='parsing ' + task + '_' + subtask))
         all_data = [{'code': code, 'dataflow': df} for code, df in zip(code_list, df_list)]
-        with open('df/' + '{}_{}'.format(task, subtask) + '.jsonl', 'w') as f:
+        with open(args.save_dir + '/{}_{}'.format(task, subtask) + '.jsonl', 'w') as f:
             for d in all_data:
                 json.dump(d, f)
                 f.write('\n')
