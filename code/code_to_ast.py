@@ -452,6 +452,7 @@ if __name__ == '__main__':
     parser.add_argument("--percentage", type=int, default=10)
     args = parser.parse_args()
 
+    os.mkdir(args.save_dir)
     codet5_tokenizer = RobertaTokenizer.from_pretrained('Salesforce/codet5-base', cache_dir='cache', local_files_only=True)
     t5_tokenizer = T5Tokenizer.from_pretrained('t5-base', cache_dir='cache', local_files_only=True)
     random.seed(1234)
