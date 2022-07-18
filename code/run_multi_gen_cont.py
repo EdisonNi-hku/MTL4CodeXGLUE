@@ -560,7 +560,10 @@ def main():
                 else:
                     file = os.path.join(args.output_dir,
                                         'checkpoint-{}/{}/pytorch_model.bin'.format(criteria, cur_task))
-                model.load_state_dict(torch.load(file))
+                if args.n_gpu > 1:
+                    model.module.load_state_dict(torch.load(file))
+                else:
+                    model.load_state_dict(torch.load(file))
 
                 result = eval_bleu(args, eval_data, eval_examples, model, tokenizer, 'test', cur_task, criteria)
                 test_bleu, test_em = result['bleu'], result['em']
