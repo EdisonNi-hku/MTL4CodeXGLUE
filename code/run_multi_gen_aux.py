@@ -295,8 +295,7 @@ def main():
                 training_state['tr_nb'] = training_state['global_step']
 
             if args.do_eval and args.local_rank in [-1, 0] \
-                    and args.save_steps > 0 and training_state['global_step'] % args.save_steps == 0 \
-                    and 'identifier' not in cur_task and 'dataflow' not in cur_task:
+                    and args.save_steps > 0 and training_state['global_step'] % args.save_steps == 0:
                 # save last checkpoint
                 if args.data_num == -1 and args.save_last_checkpoints:
                     last_output_dir = os.path.join(args.output_dir, 'checkpoint-last')
