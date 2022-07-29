@@ -72,20 +72,20 @@ def get_max_trg_len_by_task(task, sub_task):
     return max_target_length
 
 
-def get_bs(cur_task, model_tag, gas):
+def get_bs(cur_task, model_tag, gas, times):
     task = cur_task.split('_')[0]
     sub_task = cur_task.split('_')[-1]
     if 'codet5_small' in model_tag:
-        bs = 32
+        bs = math.ceil(32 * times)
         if task == 'summarize' or task == 'translate' or (task == 'refine' and sub_task == 'small'):
-            bs = 64
+            bs = math.ceil(64 * times)
     else:
         # codet5_base
-        bs = 32
+        bs = math.ceil(32 * times)
         if task == 'translate':
-            bs = 24
+            bs = math.ceil(24 * times)
         elif task == 'summarize':
-            bs = 40
+            bs = math.ceil(40 * times)
     bs = int(bs / gas)
     return bs
 
@@ -148,26 +148,21 @@ def eval_bleu(args, eval_data, eval_examples, model, tokenizer, split_tag, cur_t
                     f.write(pred_nl.strip() + '\n')
                     f1.write(gold.target.strip() + '\n')
 
-        try:
-            if task == 'summarize':
-                (goldMap, predictionMap) = smooth_bleu.computeMaps(predictions, gold_fn)
-                bleu = round(smooth_bleu.bleuFromMaps(goldMap, predictionMap)[0], 2)
-            else:
-
-                bleu = round(_bleu(gold_fn, output_fn), 2)
-                if split_tag == 'test':
-                    if task in ['summarize', 'search']:
-                        cur_lang = sub_task
-                    elif task in ['refine', 'concode', 'clone']:
-                        cur_lang = 'java'
-                    elif task == 'defect':
-                        cur_lang = 'c'
-                    elif task == 'translate':
-                        cur_lang = 'c_sharp' if sub_task == 'java-cs' else 'java'
-                    codebleu = calc_code_bleu.get_codebleu(gold_fn, output_fn, cur_lang)
-        except:
-            bleu = 0.0
-            codebleu = 0.0
+        if task == 'summarize':
+            (goldMap, predictionMap) = smooth_bleu.computeMaps(predictions, gold_fn)
+            bleu = round(smooth_bleu.bleuFromMaps(goldMap, predictionMap)[0], 2)
+        else:
+            bleu = round(_bleu(gold_fn, output_fn), 2)
+            if split_tag == 'test':
+                if task in ['summarize', 'search']:
+                    cur_lang = sub_task
+                elif task in ['refine', 'concode', 'clone']:
+                    cur_lang = 'java'
+                elif task == 'defect':
+                    cur_lang = 'c'
+                elif task == 'translate':
+                    cur_lang = 'c_sharp' if sub_task == 'java-cs' else 'java'
+                codebleu = calc_code_bleu.get_codebleu(gold_fn, output_fn, cur_lang)
 
         result = {}
         em = np.mean(dev_accs) * 100
@@ -228,11 +223,11 @@ def main():
                 train_sampler = DistributedSampler(train_data)
             if args.data_num == -1:
                 train_dataloader = DataLoader(train_data, sampler=train_sampler,
-                                              batch_size=get_bs(cur_task, args.model_name_or_path, args.gradient_accumulation_steps),
+                                              batch_size=get_bs(cur_task, args.model_name_or_path, args.gradient_accumulation_steps, args.times),
                                               num_workers=WORKER_NUM, pin_memory=True)
             else:
                 train_dataloader = DataLoader(train_data, sampler=train_sampler,
-                                              batch_size=get_bs(cur_task, args.model_name_or_path, args.gradient_accumulation_steps))
+                                              batch_size=get_bs(cur_task, args.model_name_or_path, args.gradient_accumulation_steps, args.times))
 
             train_dataloader_dict[cur_task] = cycle(train_dataloader)
 

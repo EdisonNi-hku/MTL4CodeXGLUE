@@ -103,6 +103,8 @@ def add_args(parser):
                         help='percentage of auxiliary data')
     parser.add_argument("--aux_type", type=int, default=0, choices=[0, 1, 2],
                         help='percentage of auxiliary data')
+    parser.add_argument("--times", default=1.0, type=float,
+                        help="times of batch size.")
     args = parser.parse_args()
 
     if args.task in ['summarize']:

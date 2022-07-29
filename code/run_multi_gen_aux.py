@@ -62,22 +62,22 @@ def get_gradient_accumulate_step(args, task):
         return args.gradient_accumulation_steps
 
 
-def get_bs(cur_task, model_tag, gas):
+def get_bs(cur_task, model_tag, gas, times):
     task = cur_task.split('_')[0]
     sub_task = cur_task.split('_')[-1]
     if 'codet5_small' in model_tag:
-        bs = 32
+        bs = math.ceil(32 * times)
         if task == 'summarize' or task == 'translate' or (task == 'refine' and sub_task == 'small'):
-            bs = 64
+            bs = math.ceil(64 * times)
     else:
         # codet5_base
-        bs = 32
+        bs = math.ceil(32 * times)
         if task == 'translate':
-            bs = 24
+            bs = math.ceil(24 * times)
         elif task == 'summarize':
-            bs = 40
+            bs = math.ceil(40 * times)
         elif task in ['identifier', 'dataflow']:
-            bs = 8
+            bs = math.ceil(8 * times)
     bs = int(bs / gas)
     return bs
 
@@ -145,12 +145,12 @@ def main():
                 if args.data_num == -1:
                     train_dataloader = DataLoader(train_data, sampler=train_sampler, collate_fn=identifier_collator,
                                                   batch_size=get_bs(cur_task, args.model_name_or_path,
-                                                                    args.gradient_accumulation_steps),
+                                                                    args.gradient_accumulation_steps, args.times),
                                                   num_workers=WORKER_NUM, pin_memory=True)
                 else:
                     train_dataloader = DataLoader(train_data, sampler=train_sampler, collate_fn=identifier_collator,
                                                   batch_size=get_bs(cur_task, args.model_name_or_path,
-                                                                    args.gradient_accumulation_steps))
+                                                                    args.gradient_accumulation_steps, args.times))
             else:
                 if args.data_num == -1:
                     train_dataloader = DataLoader(train_data, sampler=train_sampler,
