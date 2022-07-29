@@ -154,11 +154,11 @@ def main():
             else:
                 if args.data_num == -1:
                     train_dataloader = DataLoader(train_data, sampler=train_sampler,
-                                                  batch_size=get_bs(cur_task, args.model_name_or_path, args.gradient_accumulation_steps),
+                                                  batch_size=get_bs(cur_task, args.model_name_or_path, args.gradient_accumulation_steps, args.times),
                                                   num_workers=WORKER_NUM, pin_memory=True)
                 else:
                     train_dataloader = DataLoader(train_data, sampler=train_sampler,
-                                                  batch_size=get_bs(cur_task, args.model_name_or_path, args.gradient_accumulation_steps))
+                                                  batch_size=get_bs(cur_task, args.model_name_or_path, args.gradient_accumulation_steps, args.times))
 
             train_dataloader_dict[cur_task] = train_dataloader
             train_generator_dict[cur_task] = iter(train_dataloader)
