@@ -33,7 +33,7 @@ def main():
     print("Number of data before filter:", len(all_data))
     remove_null = [d for d in all_data if d['srl'] is not None]
     print("After remove null:", len(remove_null))
-    targets = [d['sum'] + ' ' + d['srl'] for d in remove_null]
+    targets = [d['sum'] + ' ' + ' '.join(d['srl']) for d in remove_null]
     t5_items = [(tgt, t5_tokenizer) for tgt in targets]
     codet5_items = [(tgt, codet5_tokenizer) for tgt in targets]
     t5_count = pool.map(count_tokens, tqdm(t5_items, total=len(t5_items), desc='t5 code'))
