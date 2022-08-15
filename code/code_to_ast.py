@@ -30,6 +30,9 @@ dfg_function = {
 root_dir = os.path.dirname(__file__)
 logger = logging.getLogger(__name__)
 
+codet5_tokenizer = RobertaTokenizer.from_pretrained('Salesforce/codet5-base', cache_dir='cache', local_files_only=True)
+t5_tokenizer = T5Tokenizer.from_pretrained('t5-base', cache_dir='cache', local_files_only=True)
+
 
 def get_data_flow(code, parser, lang):
     if lang == "php":
@@ -444,7 +447,7 @@ def code2df(code_dict, args):
     pool.close()
 
 
-if __name__ == '__main__':
+def main():
     parser = ArgumentParser()
     parser.add_argument("--cache_file", type=str, default='code_cache')
     parser.add_argument("--save_dir", type=str, default='df_10')
@@ -452,8 +455,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     os.mkdir(args.save_dir)
-    codet5_tokenizer = RobertaTokenizer.from_pretrained('Salesforce/codet5-base', cache_dir='cache', local_files_only=True)
-    t5_tokenizer = T5Tokenizer.from_pretrained('t5-base', cache_dir='cache', local_files_only=True)
     random.seed(1234)
     cache_fn = root_dir + '/' + args.cache_file
     if os.path.exists(cache_fn):
@@ -477,6 +478,18 @@ if __name__ == '__main__':
         torch.save(code_dict, cache_fn)
 
     code2df(code_dict, args)
+
+
+if __name__ == '__main__':
+    main()
+    # code_string = "public void addAll(BlockList<T> src) {if (src.size == 0)return;int srcDirIdx = 0;for (; srcDirIdx < src.tailDirIdx; srcDirIdx++)addAll(src.directory[srcDirIdx], 0, BLOCK_SIZE);if (src.tailBlkIdx != 0)addAll(src.tailBlock, 0, src.tailBlkIdx);}"
+    # parser = PARSERS['java'][0]
+    # tree = parser.parse(bytes(code_string, "utf8"))
+    # code_lines = code_string.split('\n')
+    # root_node = tree.root_node
+    # identifiers = find_identifiers(code_string, code_lines, root_node)
+    # print(identifiers)
+    # print(code_string[])
 
 
 
