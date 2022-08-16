@@ -101,8 +101,8 @@ def add_args(parser):
     parser.add_argument("--cont", default=False, action='store_true')
     parser.add_argument("--aux_percentage", type=int, default=10,
                         help='percentage of auxiliary data')
-    parser.add_argument("--aux_type", type=int, default=0, choices=[0, 1, 2],
-                        help='percentage of auxiliary data')
+    parser.add_argument("--aux_type", type=str, default='01',
+                        help='auxiliary tasks to use')
     parser.add_argument("--times", default=1.0, type=float,
                         help="times of batch size.")
     args = parser.parse_args()

@@ -56,12 +56,12 @@ def get_bs(cur_task, model_tag, gas):
     sub_task = cur_task.split('_')[-1]
     if 'codet5_small' in model_tag:
         bs = 32
-        if task == 'summarize' or task == 'translate' or (task == 'refine' and sub_task == 'small'):
+        if task == 'summarize' or task in ['translate', 'translate_cloze'] or (task == 'refine' and sub_task == 'small'):
             bs = 64
     else:
         # codet5_base
         bs = 32
-        if task == 'translate':
+        if task in ['translate', 'translate_cloze']:
             bs = 24
         elif task == 'summarize':
             bs = 48
@@ -105,17 +105,6 @@ def main():
 
         # Prepare training data loader
         train_examples_data_dict = load_and_cache_single_task_aux_data(args, single_task, pool, tokenizer, 'train', is_sample=False)
-        to_delete = []
-        if args.aux_type == 1:
-            for k in train_examples_data_dict.keys():
-                if 'identifier' in k:
-                    to_delete.append(k)
-        elif args.aux_type == 2:
-            for k in train_examples_data_dict.keys():
-                if 'dataflow' in k:
-                    to_delete.append(k)
-        for k in to_delete:
-            del train_examples_data_dict[k]
         logger.info("Data Counts:")
         for k, v in train_examples_data_dict.items():
             logger.info(k + ': ' + str(len(v[1])))

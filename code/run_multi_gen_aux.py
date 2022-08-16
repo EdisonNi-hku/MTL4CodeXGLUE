@@ -41,7 +41,7 @@ from models import build_or_load_gen_model
 from evaluator import smooth_bleu
 from evaluator.CodeBLEU import calc_code_bleu
 from evaluator.bleu import _bleu
-from utils import get_elapse_time, load_and_cache_multi_aux_gen_data, save_checkpoint
+from utils import get_elapse_time, save_checkpoint, load_and_cache_all_aux_gen_data
 from configs import add_args, set_seed, set_dist
 from run_multi_gen_cont import eval_bleu
 from code_to_ast import IdentifierCollator
@@ -67,12 +67,12 @@ def get_bs(cur_task, model_tag, gas, times):
     sub_task = cur_task.split('_')[-1]
     if 'codet5_small' in model_tag:
         bs = math.ceil(32 * times)
-        if task == 'summarize' or task == 'translate' or (task == 'refine' and sub_task == 'small'):
+        if task == 'summarize' or task in ['translate', 'translate_cloze'] or (task == 'refine' and sub_task == 'small'):
             bs = math.ceil(64 * times)
     else:
         # codet5_base
         bs = math.ceil(32 * times)
-        if task == 'translate':
+        if task in ['translate', 'translate_cloze']:
             bs = math.ceil(24 * times)
         elif task == 'summarize':
             bs = math.ceil(40 * times)
@@ -108,18 +108,7 @@ def main():
             tb_writer = SummaryWriter(summary_fn)
 
         # Prepare training data loader
-        train_examples_data_dict = load_and_cache_multi_aux_gen_data(args, pool, tokenizer, 'train', is_sample=False)
-        to_delete = []
-        if args.aux_type == 1:
-            for k in train_examples_data_dict.keys():
-                if 'identifier' in k:
-                    to_delete.append(k)
-        elif args.aux_type == 2:
-            for k in train_examples_data_dict.keys():
-                if 'dataflow' in k:
-                    to_delete.append(k)
-        for k in to_delete:
-            del train_examples_data_dict[k]
+        train_examples_data_dict = load_and_cache_all_aux_gen_data(args, pool, tokenizer, 'train', is_sample=False)
         logger.info("Data Counts:")
         for k, v in train_examples_data_dict.items():
             logger.info(k + ': ' + str(len(v[1])))
@@ -328,7 +317,7 @@ def main():
                 if 'dev_loss' in dev_dataset:
                     eval_examples_data_dict = dev_dataset['dev_loss']
                 else:
-                    eval_examples_data_dict = load_and_cache_multi_aux_gen_data(args, pool, tokenizer, 'dev')
+                    eval_examples_data_dict = load_and_cache_all_aux_gen_data(args, pool, tokenizer, 'dev')
                     dev_dataset['dev_loss'] = eval_examples_data_dict
 
                 for cur_task in eval_examples_data_dict.keys():
@@ -406,7 +395,7 @@ def main():
                             logger.info("Save the best ppl model into %s", output_model_file)
 
                 if args.do_eval_bleu:
-                    eval_examples_data_dict = load_and_cache_multi_aux_gen_data(args, pool, tokenizer, 'dev',
+                    eval_examples_data_dict = load_and_cache_all_aux_gen_data(args, pool, tokenizer, 'dev',
                                                                             only_src=True, is_sample=True)
                     for cur_task in eval_examples_data_dict.keys():
                         if training_state['is_early_stop'][cur_task]:
@@ -476,7 +465,7 @@ def main():
     if args.do_test:
         logger.info("  " + "***** Testing *****")
         logger.info("  Batch size = %d", args.eval_batch_size)
-        eval_examples_data_dict = load_and_cache_multi_aux_gen_data(args, pool, tokenizer, 'test', only_src=True)
+        eval_examples_data_dict = load_and_cache_all_aux_gen_data(args, pool, tokenizer, 'test', only_src=True)
         all_tasks = list(eval_examples_data_dict.keys())
         for cur_task in all_tasks:
             summary_dir = os.path.join(args.output_dir, 'summary')

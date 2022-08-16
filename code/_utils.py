@@ -167,6 +167,26 @@ class CloneExample(object):
         self.url2 = url2
 
 
+def read_summarize_srl_examples(filename, data_num):
+    examples = []
+    with open(filename, encoding="utf-8") as f:
+        for idx, line in enumerate(f):
+            line = line.strip()
+            js = json.loads(line)
+            if 'idx' not in js:
+                js['idx'] = idx
+            examples.append(
+                Example(
+                    idx=idx,
+                    source=js['code'],
+                    target=js['sum'] + ' ' + ' '.join(js['srl']),
+                )
+            )
+            if idx + 1 == data_num:
+                break
+    return examples
+
+
 def read_translate_examples(filename, data_num):
     """Read examples from filename."""
     examples = []

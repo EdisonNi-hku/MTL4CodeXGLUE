@@ -4,19 +4,19 @@ import argparse
 
 
 def get_cmd(task, sub_task, model_tag, gpu, data_num, bs, lr, source_length, target_length, patience, epoch, warmup,
-            model_dir, summary_dir, res_fn, cont, gradient_step, eval_bs, test, prefix, data_dir, times, aux_percentage=10, aux_type=0,
+            model_dir, summary_dir, res_fn, cont, gradient_step, eval_bs, test, prefix, data_dir, times, aux_percentage=10, aux_type='01',
             max_steps=None, save_steps=None, log_steps=None):
     if task != 'translate':
         eval_bs = bs
     if task == 'clone':
         eval_bs = bs / 2
     if max_steps is None:
-        cmd_str = 'bash code/exp_with_args.sh %s %s %s %s %d %d %d %d %d %d %d %d %s %s %s %d %d %d %d %d %d %d %s %s' % \
+        cmd_str = 'bash code/exp_with_args.sh %s %s %s %s %d %d %d %d %d %d %d %d %s %s %s %d %d %d %d %d %s %d %s %s' % \
                   (task, sub_task, model_tag, gpu, data_num, bs, lr, source_length, target_length, patience, epoch,
                    warmup, model_dir, summary_dir, res_fn, cont, gradient_step, eval_bs, aux_percentage, test,
                    aux_type, prefix, data_dir, str(times))
     else:
-        cmd_str = 'bash code/exp_with_args.sh %s %s %s %s %d %d %d %d %d %d %d %d %s %s %s %d %d %d %d %d %d %d %s %s %d %d '\
+        cmd_str = 'bash code/exp_with_args.sh %s %s %s %s %d %d %d %d %d %d %d %d %s %s %s %d %d %d %d %d %s %d %s %s %d %d '\
                   '%d' % (task, sub_task, model_tag, gpu, data_num, bs, lr, source_length, target_length, patience,
                           epoch, warmup, model_dir, summary_dir, res_fn, cont, gradient_step, eval_bs,
                           aux_percentage, test, aux_type, prefix, data_dir, str(times), max_steps, save_steps, log_steps)
@@ -196,9 +196,8 @@ if __name__ == '__main__':
     parser.add_argument("--aux_percentage", type=int, default=10,
                         help='percentage of auxiliary data')
     parser.add_argument("--test", type=int, default=0)
-    parser.add_argument("--aux_type", type=int, default=0, choices=[0, 1, 2],
-                        help='what auxiliary tasks to use: 0 for both, 1 for dataflow prediction,'
-                             ' 2 for identifier denoising')
+    parser.add_argument("--aux_type", type=str, default='01',
+                        help='what auxiliary tasks to use')
     parser.add_argument("--prefix", type=int, default=0, choices=[0, 1, 2, 3],
                         help='0 for no prefix, 1 for source prefix, 2 for src & tgt prefix')
     parser.add_argument("--free", default=False, action='store_true')
