@@ -166,7 +166,7 @@ def get_sub_tasks(task):
         sub_tasks = ['ruby', 'javascript', 'go', 'python', 'java', 'php']
     elif task in ['dataflow', 'identifier']:
         sub_tasks = ['ruby', 'javascript', 'go', 'python', 'java', 'php', 'c_sharp']
-    elif task in ['translate', 'translate_cloze']:
+    elif task in ['translate', 'translate_auxiliary']:
         sub_tasks = ['java-cs', 'cs-java']
     elif task == 'refine':
         sub_tasks = ['small', 'medium']
