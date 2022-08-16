@@ -139,7 +139,7 @@ def run_multi_task_exp(args):
             bs, lr, max_steps, save_steps, log_steps = 32, 5, 800000, 20000, 100
         elif args.task == 'multi_auxiliary':
             bs, lr, max_steps, save_steps, log_steps = 32, 5, 1000000, 20000, 100
-        elif args.task == 'summarize_auxiliary':
+        elif args.task in ['summarize_auxiliary', 'translate_auxiliary']:
             bs, lr, max_steps, save_steps, log_steps = 32, 5, 100000, 6500, 100
         else:
             raise ValueError("setting not defined")
@@ -166,7 +166,7 @@ def get_sub_tasks(task):
         sub_tasks = ['ruby', 'javascript', 'go', 'python', 'java', 'php']
     elif task in ['dataflow', 'identifier']:
         sub_tasks = ['ruby', 'javascript', 'go', 'python', 'java', 'php', 'c_sharp']
-    elif task == 'translate':
+    elif task in ['translate', 'translate_cloze']:
         sub_tasks = ['java-cs', 'cs-java']
     elif task == 'refine':
         sub_tasks = ['small', 'medium']
