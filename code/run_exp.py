@@ -183,7 +183,7 @@ if __name__ == '__main__':
     parser.add_argument("--task", type=str, default='summarize', choices=['summarize', 'concode', 'translate',
                                                                           'refine', 'defect', 'clone', 'multi_task',
                                                                           'dataflow', 'identifier', 'multi_auxiliary',
-                                                                          'summarize_auxiliary'])
+                                                                          'summarize_auxiliary', 'translate_auxiliary'])
     parser.add_argument("--sub_task", type=str, default='ruby')
     parser.add_argument("--res_dir", type=str, default='results', help='directory to save fine-tuning results')
     parser.add_argument("--model_dir", type=str, default='saved_models', help='directory to save fine-tuned models')
@@ -210,7 +210,7 @@ if __name__ == '__main__':
         os.makedirs(args.res_dir)
 
     assert args.sub_task in get_sub_tasks(args.task)
-    if args.task not in ['multi_task', 'multi_auxiliary', 'summarize_auxiliary']:
+    if args.task not in ['multi_task', 'multi_auxiliary', 'summarize_auxiliary', 'translate_auxiliary']:
         run_one_exp(args)
     else:
         run_multi_task_exp(args)

@@ -58,7 +58,7 @@ else
 fi
 
 EFF_BS=$((${BS}*${GRADIENT_STEP}))
-if [[ ${TASK} == 'multi_task' || ${TASK} == 'multi_auxiliary' || ${TASK} == 'summarize_auxiliary' ]]; then
+if [[ ${TASK} == 'multi_task' || ${TASK} == 'multi_auxiliary' || ${TASK} == 'summarize_auxiliary' || ${TASK} == 'translate_auxiliary' ]]; then
   FULL_MODEL_TAG=${MODEL_TAG}_${DATA_TAG}_lr${LR}_s${25}_a${AUX_PER}${AUX_NAME}${PREFIX_NAME}_${DATA}
 else
   FULL_MODEL_TAG=${MODEL_TAG}_${DATA_TAG}_lr${LR}_bs${EFF_BS}_src${SRC_LEN}_trg${TRG_LEN}_pat${PATIENCE}_e${EPOCH}
@@ -119,7 +119,7 @@ elif [[ ${TASK} == 'defect' ]] && [[ ${MODEL_TYPE} == 'roberta' ||  ${MODEL_TYPE
 elif [[ ${TASK} == 'multi_auxiliary' ]]; then
   RUN_FN=${WORKDIR}/run_multi_gen_aux.py
   MULTI_TASK_AUG='--max_steps '${25}' --save_steps '${26}' --log_steps '${27}' --aux_type '${AUX_TYPE}
-  elif [[ ${TASK} == 'summarize_auxiliary' ]]; then
+elif [[ ${TASK} == 'summarize_auxiliary' || ${TASK} == 'translate_auxiliary' ]]; then
   RUN_FN=${WORKDIR}/run_summarize_aux.py
   MULTI_TASK_AUG='--max_steps '${25}' --save_steps '${26}' --log_steps '${27}' --aux_type '${AUX_TYPE}
 else
