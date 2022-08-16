@@ -207,11 +207,11 @@ def load_and_cache_single_task_aux_data(args, single_task, pool, tokenizer, spli
         task_list = [single_task, 'dataflow', 'identifier', 'summarize_srl', 'translate_cloze']
         if '0' not in args.aux_type:
             task_list.remove('dataflow')
-        elif '1' not in args.aux_type:
+        if '1' not in args.aux_type:
             task_list.remove('identifier')
-        elif '2' not in args.aux_type:
+        if '2' not in args.aux_type:
             task_list.remove('summarize_srl')
-        elif '3' not in args.aux_type:
+        if '3' not in args.aux_type:
             task_list.remove('translate_cloze')
         for task in task_list:
             if task in ['identifier', 'dataflow', 'summarize_srl', 'translate_cloze'] and split_tag != 'train':
@@ -277,11 +277,11 @@ def load_and_cache_all_aux_gen_data(args, pool, tokenizer, split_tag, only_src=F
         task_list = ['summarize', 'translate', 'refine', 'concode', 'defect', 'dataflow', 'identifier', 'summarize_srl', 'translate_cloze']
         if '0' not in args.aux_type:
             task_list.remove('dataflow')
-        elif '1' not in args.aux_type:
+        if '1' not in args.aux_type:
             task_list.remove('identifier')
-        elif '2' not in args.aux_type:
+        if '2' not in args.aux_type:
             task_list.remove('summarize_srl')
-        elif '3' not in args.aux_type:
+        if '3' not in args.aux_type:
             task_list.remove('translate_cloze')
         for task in task_list:
             if task in ['identifier', 'dataflow', 'summarize_srl', 'translate_cloze'] and split_tag != 'train':
