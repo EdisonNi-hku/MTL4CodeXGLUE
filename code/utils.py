@@ -245,7 +245,7 @@ def load_and_cache_single_task_aux_data(args, single_task, pool, tokenizer, spli
                     features = pool.map(convert_examples_to_features, tqdm(tuple_examples, total=len(tuple_examples)))
                 else:
                     features = [convert_examples_to_features(x) for x in tuple_examples]
-                if task in ['dataflow', 'translate_cloze', 'dataflow']:
+                if task in ['dataflow', 'translate_cloze', 'summarize_srl']:
                     features = random.sample(features, math.ceil((args.aux_percentage / 100) * len(features)))
                 all_source_ids = torch.tensor([f.source_ids for f in features], dtype=torch.long)
                 if only_src:
