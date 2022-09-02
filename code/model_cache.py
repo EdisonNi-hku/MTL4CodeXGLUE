@@ -10,6 +10,10 @@ T5Config.from_pretrained('Salesforce/codet5-base', cache_dir='cache')
 T5ForConditionalGeneration.from_pretrained('Salesforce/codet5-base', cache_dir='cache')
 RobertaTokenizer.from_pretrained('Salesforce/codet5-base', cache_dir='cache')
 
+T5Config.from_pretrained('Salesforce/codet5-small', cache_dir='cache')
+T5ForConditionalGeneration.from_pretrained('Salesforce/codet5-small', cache_dir='cache')
+RobertaTokenizer.from_pretrained('Salesforce/codet5-small', cache_dir='cache')
+
 T5Config.from_pretrained('razent/cotext-2-cc', cache_dir='cache')
 T5ForConditionalGeneration.from_pretrained('razent/cotext-2-cc', cache_dir='cache')
 T5Tokenizer.from_pretrained('razent/cotext-2-cc', cache_dir='cache')
