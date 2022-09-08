@@ -168,7 +168,7 @@ def eval_bleu(args, eval_data, eval_examples, model, tokenizer, split_tag, cur_t
         em = np.mean(dev_accs) * 100
         result['em'] = em
         result['bleu'] = bleu
-        if not args.task == 'summarize' and split_tag == 'test':
+        if not task == 'summarize' and split_tag == 'test':
             result['codebleu'] = codebleu * 100
 
     logger.info("***** Eval results [%s] *****", cur_task)
@@ -477,9 +477,9 @@ def main():
                         result = eval_bleu(args, eval_data, eval_examples, model, tokenizer, 'dev', cur_task,
                                            criteria='e{}'.format(training_state['global_step']))
                         dev_bleu, dev_em = result['bleu'], result['em']
-                        if args.task == 'summarize':
+                        if cur_task.split('_')[0] == 'summarize':
                             dev_bleu_em = dev_bleu
-                        elif args.task in ['defect', 'clone']:
+                        elif cur_task.split('_')[0] in ['defect', 'clone']:
                             dev_bleu_em = dev_em
                         else:
                             dev_bleu_em = dev_bleu + dev_em
