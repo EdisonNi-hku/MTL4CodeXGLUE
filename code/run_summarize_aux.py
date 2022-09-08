@@ -279,34 +279,7 @@ def main():
 
             if args.do_eval and args.local_rank in [-1, 0] \
                     and args.save_steps > 0 and training_state['global_step'] % args.save_steps == 0:
-                # save last checkpoint
-                if args.data_num == -1 and args.save_last_checkpoints:
-                    last_output_dir = os.path.join(args.output_dir, 'checkpoint-last')
-                    if not os.path.exists(last_output_dir):
-                        os.makedirs(last_output_dir)
-                    model_to_save = model.module if hasattr(model, 'module') else model
-                    output_model_file = os.path.join(last_output_dir, "pytorch_model.bin")
-                    output_optimizer_file = os.path.join(last_output_dir, "optimizer.pt")
-                    output_scheduler_file = os.path.join(last_output_dir, "scheduler.pt")
-                    save_checkpoint(training_state, optimizer, scheduler, model_to_save, output_model_file,
-                                    output_optimizer_file, output_scheduler_file, last_output_dir)
-                    logger.info("Save the last model into %s", output_model_file)
-                    logger.info("Save the optimizer and scheduler into %s and %s" % (
-                        output_optimizer_file, output_scheduler_file))
-                if training_state['global_step'] % 10000 == 0:
-                    step_tag = '{}0k'.format(training_state['global_step'] // 10000)
-                    last_output_dir = os.path.join(args.output_dir, 'checkpoint-step-{}'.format(step_tag))
-                    if not os.path.exists(last_output_dir):
-                        os.makedirs(last_output_dir)
-                    model_to_save = model.module if hasattr(model, 'module') else model
-                    output_model_file = os.path.join(last_output_dir, "pytorch_model.bin")
-                    output_optimizer_file = os.path.join(last_output_dir, "optimizer.pt")
-                    output_scheduler_file = os.path.join(last_output_dir, "scheduler.pt")
-                    save_checkpoint(training_state, optimizer, scheduler, model_to_save, output_model_file,
-                                    output_optimizer_file, output_scheduler_file, last_output_dir)
-                    logger.info("Save the last model into %s", output_model_file)
-                    logger.info("Save the optimizer and scheduler into %s and %s" % (
-                        output_optimizer_file, output_scheduler_file))
+
                 # Eval model with dev dataset
                 if 'dev_loss' in dev_dataset:
                     eval_examples_data_dict = dev_dataset['dev_loss']
@@ -443,7 +416,37 @@ def main():
                                 fa_dict[cur_task].write(
                                     "[%d %s] Early stop as bleu/em does not increase for %d eval steps, takes %s" %
                                     (training_state['global_step'], cur_task, training_state['not_bleu_em_inc_cnt'][cur_task], get_elapse_time(t0)))
-
+                # save last checkpoint
+                if args.data_num == -1 and args.save_last_checkpoints:
+                    last_output_dir = os.path.join(args.output_dir, 'checkpoint-last')
+                    if not os.path.exists(last_output_dir):
+                        os.makedirs(last_output_dir)
+                    model_to_save = model.module if hasattr(model, 'module') else model
+                    output_model_file = os.path.join(last_output_dir, "pytorch_model.bin")
+                    output_optimizer_file = os.path.join(last_output_dir, "optimizer.pt")
+                    output_scheduler_file = os.path.join(last_output_dir, "scheduler.pt")
+                    save_checkpoint(training_state, optimizer, scheduler, model_to_save,
+                                    output_model_file,
+                                    output_optimizer_file, output_scheduler_file, last_output_dir)
+                    logger.info("Save the last model into %s", output_model_file)
+                    logger.info("Save the optimizer and scheduler into %s and %s" % (
+                        output_optimizer_file, output_scheduler_file))
+                if training_state['global_step'] % 10000 == 0:
+                    step_tag = '{}0k'.format(training_state['global_step'] // 10000)
+                    last_output_dir = os.path.join(args.output_dir,
+                                                   'checkpoint-step-{}'.format(step_tag))
+                    if not os.path.exists(last_output_dir):
+                        os.makedirs(last_output_dir)
+                    model_to_save = model.module if hasattr(model, 'module') else model
+                    output_model_file = os.path.join(last_output_dir, "pytorch_model.bin")
+                    output_optimizer_file = os.path.join(last_output_dir, "optimizer.pt")
+                    output_scheduler_file = os.path.join(last_output_dir, "scheduler.pt")
+                    save_checkpoint(training_state, optimizer, scheduler, model_to_save,
+                                    output_model_file,
+                                    output_optimizer_file, output_scheduler_file, last_output_dir)
+                    logger.info("Save the last model into %s", output_model_file)
+                    logger.info("Save the optimizer and scheduler into %s and %s" % (
+                        output_optimizer_file, output_scheduler_file))
                 logger.info("***** CUDA.empty_cache() *****")
                 torch.cuda.empty_cache()
             if training_state['global_step'] >= args.max_steps:
