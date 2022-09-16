@@ -1,5 +1,7 @@
 import random
+import os
 import torch
+import torch.distributed as dist
 import logging
 import multiprocessing
 import numpy as np
@@ -94,7 +96,7 @@ def add_args(parser):
                         help="")
     parser.add_argument("--warmup_steps", default=100, type=int,
                         help="Linear warmup over warmup_steps.")
-    parser.add_argument("--local_rank", type=int, default=-1,
+    parser.add_argument("--local_rank", type=int, default=os.getenv('LOCAL_RANK', -1),
                         help="For distributed training: local_rank")
     parser.add_argument('--seed', type=int, default=1234,
                         help="random seed for initialization")
@@ -127,8 +129,8 @@ def set_dist(args):
         # Setup for distributed data parallel
         torch.cuda.set_device(args.local_rank)
         device = torch.device("cuda", args.local_rank)
-        torch.distributed.init_process_group(backend='nccl')
-        args.n_gpu = 1
+        dist.init_process_group(backend='nccl', init_method='env://')
+        args.n_gpu = torch.cuda.device_count()
     cpu_cont = multiprocessing.cpu_count()
     logger.warning("Process rank: %s, device: %s, n_gpu: %s, distributed training: %s, cpu count: %d",
                    args.local_rank, device, args.n_gpu, bool(args.local_rank != -1), cpu_cont)
@@ -136,10 +138,16 @@ def set_dist(args):
     args.cpu_cont = cpu_cont
 
 
+def cleanup(args):
+    if args.local_rank != -1:
+        dist.destroy_process_group()
+
+
 def set_seed(args):
     """set random seed."""
-    random.seed(args.seed)
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
+    seed = args.seed + args.local_rank
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
     if args.n_gpu > 0:
-        torch.cuda.manual_seed_all(args.seed)
+        torch.cuda.manual_seed_all(seed)

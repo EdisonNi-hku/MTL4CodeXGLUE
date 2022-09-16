@@ -27,11 +27,13 @@ import math
 import numpy as np
 from tqdm import tqdm
 from itertools import cycle
+from contextlib import nullcontext
 import multiprocessing
 import time
 import sys
 import pdb
 import json
+import torch.distributed as dist
 
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader, SequentialSampler, RandomSampler
@@ -41,7 +43,7 @@ from models import build_or_load_gen_model
 from evaluator import smooth_bleu
 from evaluator.CodeBLEU import calc_code_bleu
 from evaluator.bleu import _bleu
-from utils import get_elapse_time, load_and_cache_multi_gen_data, save_checkpoint
+from utils import get_elapse_time, load_and_cache_multi_gen_data, save_checkpoint, SequentialDistributedSampler, distributed_concat
 from configs import add_args, set_seed, set_dist
 
 cpu_cont = multiprocessing.cpu_count()
@@ -91,12 +93,19 @@ def get_bs(cur_task, model_tag, gas, times):
 
 
 def eval_bleu(args, eval_data, eval_examples, model, tokenizer, split_tag, cur_task, criteria):
-    eval_sampler = SequentialSampler(eval_data)
+    if args.local_rank == -1:
+        eval_sampler = SequentialSampler(eval_data)
+        num_workers = 4
+    else:
+        eval_sampler = SequentialDistributedSampler(eval_data, batch_size=args.eval_batch_size)
+        num_workers = 0
+
     if args.data_num == -1:
         eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size,
-                                     num_workers=4, pin_memory=True)
+                                     num_workers=num_workers, pin_memory=True)
     else:
-        eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
+        eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size,
+                                     num_workers=num_workers, pin_memory=True)
     task = cur_task.split('_')[0]
     sub_task = cur_task.split('_')[-1]
     max_target_length = get_max_trg_len_by_task(task, sub_task)
@@ -119,9 +128,13 @@ def eval_bleu(args, eval_data, eval_examples, model, tokenizer, split_tag, cur_t
                                                    num_beams=5,
                                                    max_length=max_target_length,  # length_penalty=0.6,
                                                    early_stopping=task == 'summarize')
-                top_preds = list(preds.cpu().numpy())
-            pred_ids.extend(top_preds)
+                pred_ids.append(preds)
 
+    if args.local_rank != -1:
+        pred_ids = distributed_concat(torch.concat(pred_ids, dim=0), len(eval_sampler.dataset))
+    else:
+        pred_ids = torch.concat(pred_ids, dim=0)
+    pred_ids = list(pred_ids.cpu().numpy())
     pred_nls = [tokenizer.decode(id, skip_special_tokens=True, clean_up_tokenization_spaces=False) for id in pred_ids]
     if task == 'defect':
         target_dict = {0: 'false', 1: 'true'}
@@ -133,20 +146,28 @@ def eval_bleu(args, eval_data, eval_examples, model, tokenizer, split_tag, cur_t
         dev_accs = []
         predictions = []
         res_dir = os.path.join(args.res_dir, cur_task)
-        if not os.path.exists(res_dir):
+        if not os.path.exists(res_dir) and args.local_rank in [-1, 0]:
             os.makedirs(res_dir)
         output_fn = os.path.join(res_dir, "test_{}.output".format(criteria))
         gold_fn = os.path.join(res_dir, "test_{}.gold".format(criteria))
-        with open(output_fn, 'w') as f, open(gold_fn, 'w') as f1:
+        if args.local_rank in [-1, 0]:
+            with open(output_fn, 'w') as f, open(gold_fn, 'w') as f1:
+                for pred_nl, gold in zip(pred_nls, eval_examples):
+                    dev_accs.append(pred_nl.strip() == gold.target.strip())
+                    if task == 'summarize':
+                        predictions.append(str(gold.idx) + '\t' + pred_nl)
+                        f.write(str(gold.idx) + '\t' + pred_nl.strip() + '\n')
+                        f1.write(str(gold.idx) + '\t' + gold.target.strip() + '\n')
+                    else:
+                        f.write(pred_nl.strip() + '\n')
+                        f1.write(gold.target.strip() + '\n')
+            dist.barrier()
+        else:
             for pred_nl, gold in zip(pred_nls, eval_examples):
                 dev_accs.append(pred_nl.strip() == gold.target.strip())
                 if task == 'summarize':
                     predictions.append(str(gold.idx) + '\t' + pred_nl)
-                    f.write(str(gold.idx) + '\t' + pred_nl.strip() + '\n')
-                    f1.write(str(gold.idx) + '\t' + gold.target.strip() + '\n')
-                else:
-                    f.write(pred_nl.strip() + '\n')
-                    f1.write(gold.target.strip() + '\n')
+            dist.barrier()
 
         if task == 'summarize':
             (goldMap, predictionMap) = smooth_bleu.computeMaps(predictions, gold_fn)
@@ -181,22 +202,32 @@ def eval_bleu(args, eval_data, eval_examples, model, tokenizer, split_tag, cur_t
 def main():
     parser = argparse.ArgumentParser()
     args = add_args(parser)
-    logger.info(args)
-    t0 = time.time()
+    if args.local_rank in [-1, 0]:
+        t0 = time.time()
+        logger.info(args)
 
     set_dist(args)
+    logging.getLogger().setLevel(logging.INFO if dist.get_rank() in [-1, 0] else logging.WARN)
     set_seed(args)
     config, model, tokenizer = build_or_load_gen_model(args)
     if args.cont:
         model_file = os.path.join(args.output_dir, "checkpoint-last/pytorch_model.bin")
         model.load_state_dict(torch.load(model_file))
     model.to(args.device)
-    if args.n_gpu > 1:
+    if args.local_rank == -1 and args.n_gpu > 1:
         # for DataParallel
         model = torch.nn.DataParallel(model)
-    pool = multiprocessing.Pool(args.cpu_cont)
-    fa = open(os.path.join(args.output_dir, 'summary.log'), 'a+')
+    if args.local_rank != -1 and args.n_gpu > 1:
+        # for DistributedDataParallel
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank],
+                                                          output_device=args.local_rank)
+    if args.local_rank in [-1, 0]:
+        fa = open(os.path.join(args.output_dir, 'summary.log'), 'a+')
 
+    if args.local_rank == -1:
+        pool = multiprocessing.Pool(args.cpu_cont)
+    else:
+        pool = None
     fa_dict = {}
     if args.do_train:
         if args.local_rank in [-1, 0] and args.data_num == -1:
@@ -211,23 +242,26 @@ def main():
 
         for cur_task in all_tasks:
             summary_dir = os.path.join(args.output_dir, 'summary')
-            if not os.path.exists(summary_dir):
-                os.makedirs(summary_dir)
-            fa_dict[cur_task] = open(os.path.join(summary_dir, '{}_summary.log'.format(cur_task)), 'a+')
+            if args.local_rank in [-1, 0]:
+                if not os.path.exists(summary_dir):
+                    os.makedirs(summary_dir)
+                fa_dict[cur_task] = open(os.path.join(summary_dir, '{}_summary.log'.format(cur_task)), 'a+')
 
         train_dataloader_dict = dict()
         for train_data, cur_task in zip(train_data_list, all_tasks):
             if args.local_rank == -1:
                 train_sampler = RandomSampler(train_data)
-            else:
-                train_sampler = DistributedSampler(train_data)
-            if args.data_num == -1:
                 train_dataloader = DataLoader(train_data, sampler=train_sampler,
-                                              batch_size=get_bs(cur_task, args.model_name_or_path, args.gradient_accumulation_steps, args.times),
+                                              batch_size=get_bs(cur_task, args.model_name_or_path,
+                                                                args.gradient_accumulation_steps, args.times),
                                               num_workers=WORKER_NUM, pin_memory=True)
             else:
+                train_sampler = DistributedSampler(train_data)
                 train_dataloader = DataLoader(train_data, sampler=train_sampler,
-                                              batch_size=get_bs(cur_task, args.model_name_or_path, args.gradient_accumulation_steps, args.times))
+                                              batch_size=get_bs(cur_task, args.model_name_or_path,
+                                                                args.gradient_accumulation_steps, args.times),
+                                              num_workers=0, pin_memory=True, drop_last=False)
+
 
             train_dataloader_dict[cur_task] = cycle(train_dataloader)
 
@@ -244,8 +278,12 @@ def main():
                                                     num_warmup_steps=args.warmup_steps,
                                                     num_training_steps=args.max_steps)
         if args.cont:
-            optimizer_state = torch.load(os.path.join(args.output_dir, 'checkpoint-last/optimizer.pt'), map_location="cpu")
-            scheduler_state = torch.load(os.path.join(args.output_dir, 'checkpoint-last/scheduler.pt'), map_location="cpu")
+            if args.local_rank == -1:
+                map_location = "cpu"
+            else:
+                map_location = "cuda:%d" % args.local_rank
+            optimizer_state = torch.load(os.path.join(args.output_dir, 'checkpoint-last/optimizer.pt'), map_location=map_location)
+            scheduler_state = torch.load(os.path.join(args.output_dir, 'checkpoint-last/scheduler.pt'), map_location=map_location)
             optimizer.load_state_dict(optimizer_state)
             scheduler.load_state_dict(scheduler_state)
 
@@ -322,23 +360,25 @@ def main():
                 target_mask = target_ids.ne(tokenizer.pad_token_id)
                 # pdb.set_trace()
 
-                if args.model_type == 'roberta':
-                    loss, _, _ = model(source_ids=source_ids, source_mask=source_mask,
-                                       target_ids=target_ids, target_mask=target_mask)
-                else:
-                    outputs = model(input_ids=source_ids, attention_mask=source_mask,
-                                    labels=target_ids, decoder_attention_mask=target_mask)
-                    loss = outputs.loss
+                mcontext = model.no_sync if args.local_rank != -1 and training_state['nb_tr_steps'] % args.gradient_accumulation_steps != 0 else nullcontext
+                with mcontext():
+                    if args.model_type == 'roberta':
+                        loss, _, _ = model(source_ids=source_ids, source_mask=source_mask,
+                                           target_ids=target_ids, target_mask=target_mask)
+                    else:
+                        outputs = model(input_ids=source_ids, attention_mask=source_mask,
+                                        labels=target_ids, decoder_attention_mask=target_mask)
+                        loss = outputs.loss
 
-                if args.n_gpu > 1:
-                    loss = loss.mean()  # mean() to average on multi-gpu.
-                if args.gradient_accumulation_steps > 1:
-                    loss = loss / args.gradient_accumulation_steps
-                training_state['tr_loss'] += loss.item()
+                    if args.n_gpu > 1 and args.local_rank == -1:
+                        loss = loss.mean()  # mean() to average on multi-gpu with DP backend.
+                    if args.gradient_accumulation_steps > 1:
+                        loss = loss / args.gradient_accumulation_steps
+                    training_state['tr_loss'] += loss.item()
 
-                training_state['nb_tr_examples'] += source_ids.size(0)
-                training_state['nb_tr_steps'] += 1
-                loss.backward()
+                    training_state['nb_tr_examples'] += source_ids.size(0)
+                    training_state['nb_tr_steps'] += 1
+                    loss.backward()
 
             assert(training_state['nb_tr_steps'] % args.gradient_accumulation_steps == 0)
             # Update parameters
@@ -368,14 +408,15 @@ def main():
                     if training_state['is_early_stop'][cur_task]:
                         continue
                     eval_examples, eval_data = eval_examples_data_dict[cur_task]
-                    eval_sampler = SequentialSampler(eval_data)
-                    if args.data_num == -1:
-                        eval_dataloader = DataLoader(eval_data, sampler=eval_sampler,
-                                                     batch_size=args.eval_batch_size,
-                                                     num_workers=4, pin_memory=True)
+                    if args.local_rank == -1:
+                        eval_sampler = SequentialSampler(eval_data)
+                        num_worker = 4
                     else:
-                        eval_dataloader = DataLoader(eval_data, sampler=eval_sampler,
-                                                     batch_size=args.eval_batch_size)
+                        eval_sampler = SequentialDistributedSampler(eval_data, batch_size=args.eval_batch_size)
+                        num_worker = 0
+                    eval_dataloader = DataLoader(eval_data, sampler=eval_sampler,
+                                                 batch_size=args.eval_batch_size,
+                                                 num_workers=num_worker, pin_memory=True)
 
                     logger.info("  " + "***** Running ppl evaluation on [{}] *****".format(cur_task))
                     logger.info("  Num examples = %d", len(eval_examples))
@@ -398,10 +439,19 @@ def main():
                                 outputs = model(input_ids=source_ids, attention_mask=source_mask,
                                                 labels=target_ids, decoder_attention_mask=target_mask)
                                 loss = outputs.loss
-                        if args.n_gpu > 1:
+                        if args.n_gpu > 1 and args.local_rank == -1:
                             loss = loss.mean()
                         eval_loss += loss.item()
                         batch_num += 1
+                    if args.local_rank != -1:
+                        batch_num_tensor = torch.tensor(batch_num)
+                        eval_loss_tensor = torch.tensor(eval_loss)
+                        batch_tensors = [batch_num_tensor.clone() for _ in range(torch.distributed.get_world_size())]
+                        dist.all_gather(batch_tensors, batch_num_tensor)
+                        eval_tensors = [eval_loss_tensor.clone() for _ in range(torch.distributed.get_world_size())]
+                        dist.all_gather(eval_tensors, eval_loss_tensor)
+                        eval_loss = sum(eval_tensors).item()
+                        batch_num = sum(batch_tensors).item()
                     # Print loss of dev dataset
                     eval_loss = eval_loss / batch_num
                     result = {'cur_task': cur_task,
@@ -413,7 +463,7 @@ def main():
                         logger.info("  %s = %s", key, str(result[key]))
                     logger.info("  " + "*" * 20)
 
-                    if args.data_num == -1:
+                    if args.data_num == -1 and args.local_rank in [-1, 0]:
                         tb_writer.add_scalar('dev_ppl_{}'.format(cur_task),
                                              round(np.exp(eval_loss), 5),
                                              training_state['global_step'])
@@ -421,22 +471,24 @@ def main():
                     if eval_loss < training_state['best_loss'][cur_task]:
                         logger.info("  Best ppl:%s", round(np.exp(eval_loss), 5))
                         logger.info("  " + "*" * 20)
-                        fa_dict[cur_task].write(
-                            "[%d: %s] Best ppl changed into %.4f\n" % (training_state['global_step'], cur_task, np.exp(eval_loss)))
+                        if args.local_rank in [-1, 0]:
+                            fa_dict[cur_task].write(
+                                "[%d: %s] Best ppl changed into %.4f\n" % (training_state['global_step'], cur_task, np.exp(eval_loss)))
                         training_state['best_loss'][cur_task] = eval_loss
 
                         # Save best checkpoint for best ppl
-                        output_dir = os.path.join(args.output_dir, 'checkpoint-best-ppl', cur_task)
-                        if not os.path.exists(output_dir):
-                            os.makedirs(output_dir)
-                        if args.data_num == -1 or args.always_save_model:
-                            model_to_save = model.module if hasattr(model, 'module') else model
-                            output_model_file = os.path.join(output_dir, "pytorch_model.bin")
-                            output_optimizer_file = os.path.join(output_dir, "optimizer.pt")
-                            output_scheduler_file = os.path.join(output_dir, "scheduler.pt")
-                            save_checkpoint(training_state, optimizer, scheduler, model_to_save, output_model_file,
-                                            output_optimizer_file, output_scheduler_file, output_dir)
-                            logger.info("Save the best ppl model into %s", output_model_file)
+                        if args.local_rank in [-1, 0]:
+                            output_dir = os.path.join(args.output_dir, 'checkpoint-best-ppl', cur_task)
+                            if not os.path.exists(output_dir):
+                                os.makedirs(output_dir)
+                            if args.data_num == -1 or args.always_save_model:
+                                model_to_save = model.module if hasattr(model, 'module') else model
+                                output_model_file = os.path.join(output_dir, "pytorch_model.bin")
+                                output_optimizer_file = os.path.join(output_dir, "optimizer.pt")
+                                output_scheduler_file = os.path.join(output_dir, "scheduler.pt")
+                                save_checkpoint(training_state, optimizer, scheduler, model_to_save, output_model_file,
+                                                output_optimizer_file, output_scheduler_file, output_dir)
+                                logger.info("Save the best ppl model into %s", output_model_file)
 
                 if args.do_eval_bleu:
                     eval_examples_data_dict = load_and_cache_multi_gen_data(args, pool, tokenizer, 'dev',
@@ -466,22 +518,23 @@ def main():
                                         training_state['global_step'], cur_task, dev_bleu_em, dev_bleu, dev_em)
                             logger.info("  " + "*" * 20)
                             training_state['best_bleu_em'][cur_task] = dev_bleu_em
-                            fa_dict[cur_task].write(
-                                "[%d: %s] Best bleu+em changed into %.2f (bleu: %.2f, em: %.2f)\n" % (
-                                    training_state['global_step'], cur_task, training_state['best_bleu_em'][cur_task], dev_bleu, dev_em))
-                            # Save best checkpoint for best bleu
-                            output_dir = os.path.join(args.output_dir, 'checkpoint-best-bleu', cur_task)
-                            if not os.path.exists(output_dir):
-                                os.makedirs(output_dir)
-                            if args.data_num == -1 or args.always_save_model:
-                                model_to_save = model.module if hasattr(model, 'module') else model
-                                output_model_file = os.path.join(output_dir, "pytorch_model.bin")
-                                output_optimizer_file = os.path.join(output_dir, "optimizer.pt")
-                                output_scheduler_file = os.path.join(output_dir, "scheduler.pt")
-                                save_checkpoint(training_state, optimizer, scheduler, model_to_save,
-                                                output_model_file,
-                                                output_optimizer_file, output_scheduler_file, output_dir)
-                                logger.info("Save the best bleu model into %s", output_model_file)
+                            if args.local_rank in [-1, 0]:
+                                fa_dict[cur_task].write(
+                                    "[%d: %s] Best bleu+em changed into %.2f (bleu: %.2f, em: %.2f)\n" % (
+                                        training_state['global_step'], cur_task, training_state['best_bleu_em'][cur_task], dev_bleu, dev_em))
+                                # Save best checkpoint for best bleu
+                                output_dir = os.path.join(args.output_dir, 'checkpoint-best-bleu', cur_task)
+                                if not os.path.exists(output_dir):
+                                    os.makedirs(output_dir)
+                                if args.data_num == -1 or args.always_save_model:
+                                    model_to_save = model.module if hasattr(model, 'module') else model
+                                    output_model_file = os.path.join(output_dir, "pytorch_model.bin")
+                                    output_optimizer_file = os.path.join(output_dir, "optimizer.pt")
+                                    output_scheduler_file = os.path.join(output_dir, "scheduler.pt")
+                                    save_checkpoint(training_state, optimizer, scheduler, model_to_save,
+                                                    output_model_file,
+                                                    output_optimizer_file, output_scheduler_file, output_dir)
+                                    logger.info("Save the best bleu model into %s", output_model_file)
                         else:
                             training_state['not_bleu_em_inc_cnt'][cur_task] += 1
                             logger.info("[%d %s] bleu/em does not increase for %d eval steps",
@@ -490,12 +543,13 @@ def main():
                                 logger.info("[%d %s] Early stop as bleu/em does not increase for %d eval steps",
                                             training_state['global_step'], cur_task, training_state['not_bleu_em_inc_cnt'][cur_task])
                                 training_state['is_early_stop'][cur_task] = 1
-                                fa_dict[cur_task].write(
-                                    "[%d %s] Early stop as bleu/em does not increase for %d eval steps, takes %s" %
-                                    (training_state['global_step'], cur_task, training_state['not_bleu_em_inc_cnt'][cur_task], get_elapse_time(t0)))
+                                if args.local_rank in [-1, 0]:
+                                    fa_dict[cur_task].write(
+                                        "[%d %s] Early stop as bleu/em does not increase for %d eval steps, takes %s" %
+                                        (training_state['global_step'], cur_task, training_state['not_bleu_em_inc_cnt'][cur_task], get_elapse_time(t0)))
 
                 # save last checkpoint
-                if args.data_num == -1 and args.save_last_checkpoints:
+                if args.data_num == -1 and args.save_last_checkpoints and args.local_rank in [-1, 0]:
                     last_output_dir = os.path.join(args.output_dir, 'checkpoint-last')
                     if not os.path.exists(last_output_dir):
                         os.makedirs(last_output_dir)
@@ -509,7 +563,7 @@ def main():
                     logger.info("Save the last model into %s", output_model_file)
                     logger.info("Save the optimizer and scheduler into %s and %s" % (
                         output_optimizer_file, output_scheduler_file))
-                if training_state['global_step'] % 100000 == 0:
+                if training_state['global_step'] % 100000 == 0 and args.local_rank in [-1, 0]:
                     step_tag = '{}00k'.format(training_state['global_step'] // 100000)
                     last_output_dir = os.path.join(args.output_dir,
                                                    'checkpoint-step-{}'.format(step_tag))
@@ -533,20 +587,22 @@ def main():
 
         if args.local_rank in [-1, 0] and args.data_num == -1:
             tb_writer.close()
-        logger.info("Finish training and take %.2f", time.time() - t0)
-        for cur_task in all_tasks:
-            fa_dict[cur_task].close()
+        if args.local_rank in [-1, 0]:
+            logger.info("Finish training and take %.2f", time.time() - t0)
+            for cur_task in all_tasks:
+                fa_dict[cur_task].close()
 
     if args.do_test:
         logger.info("  " + "***** Testing *****")
         logger.info("  Batch size = %d", args.eval_batch_size)
         eval_examples_data_dict = load_and_cache_multi_gen_data(args, pool, tokenizer, 'test', only_src=True)
         all_tasks = list(eval_examples_data_dict.keys())
-        for cur_task in all_tasks:
-            summary_dir = os.path.join(args.output_dir, 'summary')
-            if not os.path.exists(summary_dir):
-                os.makedirs(summary_dir)
-            fa_dict[cur_task] = open(os.path.join(summary_dir, '{}_summary.log'.format(cur_task)), 'a+')
+        if args.local_rank in [-1, 0]:
+            for cur_task in all_tasks:
+                summary_dir = os.path.join(args.output_dir, 'summary')
+                if not os.path.exists(summary_dir):
+                    os.makedirs(summary_dir)
+                fa_dict[cur_task] = open(os.path.join(summary_dir, '{}_summary.log'.format(cur_task)), 'a+')
 
         for cur_task in all_tasks:
             eval_examples, eval_data = eval_examples_data_dict[cur_task]
@@ -570,17 +626,20 @@ def main():
                 result_str = "[%s %s] bleu-4: %.2f, em: %.4f, codebleu: %.4f\n" % (
                     cur_task, criteria, test_bleu, test_em, test_codebleu)
                 logger.info(result_str)
-                fa_dict[cur_task].write(result_str)
-                fa.write(result_str)
+                if args.local_rank in [-1, 0]:
+                    fa_dict[cur_task].write(result_str)
+                    fa.write(result_str)
                 if args.res_fn:
                     with open(args.res_fn, 'a+') as f:
                         f.write('[Time: {}] {}\n'.format(get_elapse_time(t0), file))
                         f.write(result_str)
-    logger.info("Finish and take {}".format(get_elapse_time(t0)))
-    for cur_task in all_tasks:
-        fa_dict[cur_task].close()
-    fa.write("Finish and take {}".format(get_elapse_time(t0)))
-    fa.close()
+
+    if args.local_rank in [-1, 0]:
+        logger.info("Finish and take {}".format(get_elapse_time(t0)))
+        for cur_task in all_tasks:
+            fa_dict[cur_task].close()
+        fa.write("Finish and take {}".format(get_elapse_time(t0)))
+        fa.close()
 
 
 if __name__ == "__main__":

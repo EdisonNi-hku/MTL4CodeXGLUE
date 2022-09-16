@@ -1,4 +1,5 @@
 from torch.utils.data import TensorDataset
+import torch.distributed as dist
 import numpy as np
 import logging
 import os
@@ -62,7 +63,10 @@ def load_and_cache_gen_data(args, filename, pool, tokenizer, split_tag, only_src
         else:
             logger.info("Create cache data into %s", cache_fn)
         tuple_examples = [(example, idx, tokenizer, args, split_tag) for idx, example in enumerate(examples)]
-        features = pool.map(convert_examples_to_features, tqdm(tuple_examples, total=len(tuple_examples)))
+        if pool is not None:
+            features = pool.map(convert_examples_to_features, tqdm(tuple_examples, total=len(tuple_examples)))
+        else:
+            features = [convert_examples_to_features(x) for x in tuple_examples]
         all_source_ids = torch.tensor([f.source_ids for f in features], dtype=torch.long)
         if split_tag == 'test' or only_src:
             data = TensorDataset(all_source_ids)
@@ -90,7 +94,10 @@ def load_and_cache_clone_data(args, filename, pool, tokenizer, split_tag, is_sam
         elif args.data_num == -1:
             logger.info("Create cache data into %s", cache_fn)
         tuple_examples = [(example, idx, tokenizer, args) for idx, example in enumerate(examples)]
-        features = pool.map(convert_clone_examples_to_features, tqdm(tuple_examples, total=len(tuple_examples)))
+        if pool is not None:
+            features = pool.map(convert_clone_examples_to_features, tqdm(tuple_examples, total=len(tuple_examples)))
+        else:
+            features = [convert_clone_examples_to_features(x) for x in tuple_examples]
         all_source_ids = torch.tensor([f.source_ids for f in features], dtype=torch.long)
         all_labels = torch.tensor([f.label for f in features], dtype=torch.long)
         data = TensorDataset(all_source_ids, all_labels)
@@ -116,7 +123,10 @@ def load_and_cache_defect_data(args, filename, pool, tokenizer, split_tag, is_sa
         elif args.data_num == -1:
             logger.info("Create cache data into %s", cache_fn)
         tuple_examples = [(example, idx, tokenizer, args) for idx, example in enumerate(examples)]
-        features = pool.map(convert_defect_examples_to_features, tqdm(tuple_examples, total=len(tuple_examples)))
+        if pool is not None:
+            features = pool.map(convert_defect_examples_to_features, tqdm(tuple_examples, total=len(tuple_examples)))
+        else:
+            features = [convert_defect_examples_to_features(x) for x in tuple_examples]
         # features = [convert_clone_examples_to_features(x) for x in tuple_examples]
         all_source_ids = torch.tensor([f.source_ids for f in features], dtype=torch.long)
         all_labels = torch.tensor([f.label for f in features], dtype=torch.long)
@@ -178,7 +188,7 @@ def load_and_cache_multi_gen_data(args, pool, tokenizer, split_tag, only_src=Fal
                     calc_stats(examples)
 
                 tuple_examples = [(example, idx, tokenizer, args, split_tag) for idx, example in enumerate(examples)]
-                if args.data_num == -1:
+                if args.data_num == -1 and pool is not None:
                     features = pool.map(convert_examples_to_features, tqdm(tuple_examples, total=len(tuple_examples)))
                 else:
                     features = [convert_examples_to_features(x) for x in tuple_examples]
@@ -241,7 +251,7 @@ def load_and_cache_single_task_aux_data(args, single_task, pool, tokenizer, spli
 
             if task != 'identifier':
                 tuple_examples = [(example, idx, tokenizer, args, split_tag) for idx, example in enumerate(examples)]
-                if args.data_num == -1:
+                if args.data_num == -1 and pool is not None:
                     features = pool.map(convert_examples_to_features, tqdm(tuple_examples, total=len(tuple_examples)))
                 else:
                     features = [convert_examples_to_features(x) for x in tuple_examples]
@@ -336,7 +346,7 @@ def load_and_cache_all_aux_gen_data(args, pool, tokenizer, split_tag, only_src=F
 
                 if task != 'identifier':
                     tuple_examples = [(example, idx, tokenizer, args, split_tag) for idx, example in enumerate(examples)]
-                    if args.data_num == -1:
+                    if args.data_num == -1 and pool is not None:
                         features = pool.map(convert_examples_to_features, tqdm(tuple_examples, total=len(tuple_examples)))
                     else:
                         features = [convert_examples_to_features(x) for x in tuple_examples]
@@ -521,3 +531,64 @@ def convert_src_tgt_to_features(item):
         source_ids,
         target_ids,
     )
+
+
+# copied from transformers.trainer_pt_utils, removing warning.
+class SequentialDistributedSampler(torch.utils.data.sampler.Sampler):
+    """
+    Distributed Sampler that subsamples indices sequentially, making it easier to collate all results at the end.
+
+    Even though we only use this sampler for eval and predict (no training), which means that the model params won't
+    have to be synced (i.e. will not hang for synchronization even if varied number of forward passes), we still add
+    extra samples to the sampler to make it evenly divisible (like in `DistributedSampler`) to make it easy to `gather`
+    or `reduce` resulting tensors at the end of the loop.
+    """
+
+    def __init__(self, dataset, num_replicas=None, rank=None, batch_size=None):
+        if num_replicas is None:
+            if not dist.is_available():
+                raise RuntimeError("Requires distributed package to be available")
+            num_replicas = dist.get_world_size()
+        if rank is None:
+            if not dist.is_available():
+                raise RuntimeError("Requires distributed package to be available")
+            rank = dist.get_rank()
+        self.dataset = dataset
+        self.num_replicas = num_replicas
+        self.rank = rank
+        num_samples = len(self.dataset)
+        # Add extra samples to make num_samples a multiple of batch_size if passed
+        if batch_size is not None:
+            self.num_samples = int(math.ceil(num_samples / (batch_size * num_replicas))) * batch_size
+        else:
+            self.num_samples = int(math.ceil(num_samples / num_replicas))
+        self.total_size = self.num_samples * self.num_replicas
+        self.batch_size = batch_size
+
+    def __iter__(self):
+        indices = list(range(len(self.dataset)))
+
+        # add extra samples to make it evenly divisible
+        indices += indices[: (self.total_size - len(indices))]
+        assert (
+                len(indices) == self.total_size
+        ), f"Indices length {len(indices)} and total size {self.total_size} mismatched"
+
+        # subsample
+        indices = indices[self.rank * self.num_samples: (self.rank + 1) * self.num_samples]
+        assert (
+                len(indices) == self.num_samples
+        ), f"Indices length {len(indices)} and sample number {self.num_samples} mismatched"
+
+        return iter(indices)
+
+    def __len__(self):
+        return self.num_samples
+
+
+def distributed_concat(tensor, num_total_examples):
+    output_tensors = [tensor.clone() for _ in range(torch.distributed.get_world_size())]
+    torch.distributed.all_gather(output_tensors, tensor)
+    concat = torch.cat(output_tensors, dim=0)
+    # truncate the dummy elements added by SequentialDistributedSampler
+    return concat[:num_total_examples]
