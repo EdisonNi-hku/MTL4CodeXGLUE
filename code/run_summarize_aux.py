@@ -99,7 +99,7 @@ def main():
     if args.local_rank == -1 and args.n_gpu > 1:
         # for DataParallel
         model = torch.nn.DataParallel(model)
-    if args.local_rank != -1 and args.n_gpu > 1:
+    if args.local_rank != -1:
         # for DistributedDataParallel
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank],
                                                           output_device=args.local_rank)

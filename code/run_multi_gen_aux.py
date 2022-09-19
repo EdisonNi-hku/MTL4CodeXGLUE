@@ -101,7 +101,7 @@ def main():
     if args.local_rank == -1 and args.n_gpu > 1:
         # for DataParallel
         model = torch.nn.DataParallel(model)
-    if args.local_rank != -1 and args.n_gpu > 1:
+    if args.local_rank != -1:
         # for DistributedDataParallel
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank],
                                                           output_device=args.local_rank)
@@ -353,8 +353,8 @@ def main():
                         eval_loss += loss.item()
                         batch_num += 1
                     if args.local_rank != -1:
-                        batch_num_tensor = torch.tensor(batch_num)
-                        eval_loss_tensor = torch.tensor(eval_loss)
+                        batch_num_tensor = torch.tensor(batch_num, device=args.device)
+                        eval_loss_tensor = torch.tensor(eval_loss, device=args.device)
                         batch_tensors = [batch_num_tensor.clone() for _ in range(torch.distributed.get_world_size())]
                         dist.all_gather(batch_tensors, batch_num_tensor)
                         eval_tensors = [eval_loss_tensor.clone() for _ in range(torch.distributed.get_world_size())]
