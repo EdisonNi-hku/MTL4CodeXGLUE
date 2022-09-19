@@ -91,6 +91,7 @@ def main():
         t0 = time.time()
 
     set_dist(args)
+    torch.cuda.set_device(args.local_rank)
     logging.getLogger().setLevel(logging.INFO if dist.get_rank() in [-1, 0] else logging.WARN)
     set_seed(args)
     config, model, tokenizer = build_or_load_gen_model(args)
