@@ -30,6 +30,11 @@ def convert_examples_to_features(item):
             source_str = "{} {}: {}".format(args.task, args.sub_task, example.source)
         else:
             source_str = "{}: {}".format(args.task, example.source)
+    elif args.model_type in ['t5', 'codet5'] and args.aux_prefix == 1:
+        if args.task in ['identifier', 'dataflow', 'summarize_srl', 'translate_cloze']:
+            source_str = "{}: {}".format(args.task, args.sub_task, example.source)
+        else:
+            source_str = example.source
     else:
         source_str = example.source
 

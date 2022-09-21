@@ -40,7 +40,7 @@ from torch.utils.data.distributed import DistributedSampler
 from transformers import AdamW, get_linear_schedule_with_warmup
 from models import build_or_load_gen_model
 from utils import get_elapse_time, load_and_cache_single_task_aux_data, save_checkpoint, SequentialDistributedSampler
-from configs import add_args, set_seed, set_dist
+from configs import add_args, set_seed, set_dist, cleanup
 from run_multi_gen_cont import eval_bleu
 from code_to_ast import IdentifierCollator
 from run_multi_gen_aux import get_gradient_accumulate_step
@@ -301,8 +301,7 @@ def main():
                 training_state['logging_loss'] = train_loss
                 training_state['tr_nb'] = training_state['global_step']
 
-            if args.do_eval and args.local_rank in [-1, 0] \
-                    and args.save_steps > 0 and training_state['global_step'] % args.save_steps == 0:
+            if args.do_eval and  args.save_steps > 0 and training_state['global_step'] % args.save_steps == 0:
 
                 # Eval model with dev dataset
                 if 'dev_loss' in dev_dataset:
@@ -417,7 +416,8 @@ def main():
                             dev_bleu_em = dev_bleu + dev_em
                         if args.data_num == -1:
                             training_state['bleu_em'][cur_task].append({'step': training_state['global_step'], 'bleu_em': dev_bleu_em})
-                            tb_writer.add_scalar('dev_bleu_em_{}'.format(cur_task), dev_bleu_em, training_state['global_step'])
+                            if args.local_rank in [-1, 0]:
+                                tb_writer.add_scalar('dev_bleu_em_{}'.format(cur_task), dev_bleu_em, training_state['global_step'])
 
                         if dev_bleu_em > training_state['best_bleu_em'][cur_task]:
                             training_state['not_bleu_em_inc_cnt'][cur_task] = 0
@@ -536,10 +536,10 @@ def main():
                 if args.local_rank in [-1, 0]:
                     fa_dict[cur_task].write(result_str)
                     fa.write(result_str)
-                if args.res_fn:
-                    with open(args.res_fn, 'a+') as f:
-                        f.write('[Time: {}] {}\n'.format(get_elapse_time(t0), file))
-                        f.write(result_str)
+                    if args.res_fn:
+                        with open(args.res_fn, 'a+') as f:
+                            f.write('[Time: {}] {}\n'.format(get_elapse_time(t0), file))
+                            f.write(result_str)
 
     if args.local_rank in [-1, 0]:
         logger.info("Finish and take {}".format(get_elapse_time(t0)))
@@ -547,6 +547,7 @@ def main():
             fa_dict[cur_task].close()
         fa.write("Finish and take {}".format(get_elapse_time(t0)))
         fa.close()
+    cleanup(args)
 
 
 if __name__ == "__main__":

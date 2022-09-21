@@ -34,7 +34,7 @@ import sys
 import pdb
 import json
 import torch.distributed as dist
-
+import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader, SequentialSampler, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
@@ -44,7 +44,7 @@ from evaluator import smooth_bleu
 from evaluator.CodeBLEU import calc_code_bleu
 from evaluator.bleu import _bleu
 from utils import get_elapse_time, load_and_cache_multi_gen_data, save_checkpoint, SequentialDistributedSampler, distributed_concat
-from configs import add_args, set_seed, set_dist
+from configs import add_args, set_seed, set_dist, cleanup
 
 cpu_cont = multiprocessing.cpu_count()
 
@@ -128,6 +128,8 @@ def eval_bleu(args, eval_data, eval_examples, model, tokenizer, split_tag, cur_t
                                                    num_beams=5,
                                                    max_length=max_target_length,  # length_penalty=0.6,
                                                    early_stopping=task == 'summarize')
+                length = preds.size()[1]
+                preds = F.pad(preds, (0, max_target_length - length), 'constant', tokenizer.pad_token_id)
                 pred_ids.append(preds)
 
     if args.local_rank != -1:
@@ -394,8 +396,7 @@ def main():
                 training_state['logging_loss'] = train_loss
                 training_state['tr_nb'] = training_state['global_step']
 
-            if args.do_eval and args.local_rank in [-1, 0] \
-                    and args.save_steps > 0 and training_state['global_step'] % args.save_steps == 0:
+            if args.do_eval and  args.save_steps > 0 and training_state['global_step'] % args.save_steps == 0:
 
                 # Eval model with dev dataset
                 if 'dev_loss' in dev_dataset:
@@ -510,7 +511,8 @@ def main():
                             dev_bleu_em = dev_bleu + dev_em
                         if args.data_num == -1:
                             training_state['bleu_em'][cur_task].append({'step': training_state['global_step'], 'bleu_em': dev_bleu_em})
-                            tb_writer.add_scalar('dev_bleu_em_{}'.format(cur_task), dev_bleu_em, training_state['global_step'])
+                            if args.local_rank in [-1, 0]:
+                                tb_writer.add_scalar('dev_bleu_em_{}'.format(cur_task), dev_bleu_em, training_state['global_step'])
 
                         if dev_bleu_em > training_state['best_bleu_em'][cur_task]:
                             training_state['not_bleu_em_inc_cnt'][cur_task] = 0
@@ -629,10 +631,10 @@ def main():
                 if args.local_rank in [-1, 0]:
                     fa_dict[cur_task].write(result_str)
                     fa.write(result_str)
-                if args.res_fn:
-                    with open(args.res_fn, 'a+') as f:
-                        f.write('[Time: {}] {}\n'.format(get_elapse_time(t0), file))
-                        f.write(result_str)
+                    if args.res_fn:
+                        with open(args.res_fn, 'a+') as f:
+                            f.write('[Time: {}] {}\n'.format(get_elapse_time(t0), file))
+                            f.write(result_str)
 
     if args.local_rank in [-1, 0]:
         logger.info("Finish and take {}".format(get_elapse_time(t0)))
@@ -640,6 +642,7 @@ def main():
             fa_dict[cur_task].close()
         fa.write("Finish and take {}".format(get_elapse_time(t0)))
         fa.close()
+    cleanup(args)
 
 
 if __name__ == "__main__":

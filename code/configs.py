@@ -107,6 +107,7 @@ def add_args(parser):
                         help='auxiliary tasks to use')
     parser.add_argument("--times", default=1.0, type=float,
                         help="times of batch size.")
+    parser.add_argument("--aux_prefix", type=int, default=0, choices=[0, 1])
     args = parser.parse_args()
 
     if args.task in ['summarize']:

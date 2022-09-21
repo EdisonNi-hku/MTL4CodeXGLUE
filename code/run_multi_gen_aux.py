@@ -43,7 +43,7 @@ from evaluator import smooth_bleu
 from evaluator.CodeBLEU import calc_code_bleu
 from evaluator.bleu import _bleu
 from utils import get_elapse_time, save_checkpoint, load_and_cache_all_aux_gen_data, SequentialDistributedSampler, distributed_concat
-from configs import add_args, set_seed, set_dist
+from configs import add_args, set_seed, set_dist, cleanup
 from run_multi_gen_cont import eval_bleu
 from code_to_ast import IdentifierCollator
 
@@ -91,7 +91,6 @@ def main():
         t0 = time.time()
 
     set_dist(args)
-    torch.cuda.set_device(args.local_rank)
     logging.getLogger().setLevel(logging.INFO if dist.get_rank() in [-1, 0] else logging.WARN)
     set_seed(args)
     config, model, tokenizer = build_or_load_gen_model(args)
@@ -304,8 +303,7 @@ def main():
                 training_state['logging_loss'] = train_loss
                 training_state['tr_nb'] = training_state['global_step']
 
-            if args.do_eval and args.local_rank in [-1, 0] \
-                    and args.save_steps > 0 and training_state['global_step'] % args.save_steps == 0:
+            if args.do_eval and args.save_steps > 0 and training_state['global_step'] % args.save_steps == 0:
 
                 # Eval model with dev dataset
                 if 'dev_loss' in dev_dataset:
@@ -354,12 +352,13 @@ def main():
                         eval_loss += loss.item()
                         batch_num += 1
                     if args.local_rank != -1:
-                        batch_num_tensor = torch.tensor(batch_num, device=args.device)
-                        eval_loss_tensor = torch.tensor(eval_loss, device=args.device)
-                        batch_tensors = [batch_num_tensor.clone() for _ in range(torch.distributed.get_world_size())]
+                        batch_num_tensor = torch.tensor([batch_num], device=args.device)
+                        eval_loss_tensor = torch.tensor([eval_loss], device=args.device)
+                        batch_tensors = [torch.zeros_like(batch_num_tensor) for _ in range(torch.distributed.get_world_size())]
                         dist.all_gather(batch_tensors, batch_num_tensor)
-                        eval_tensors = [eval_loss_tensor.clone() for _ in range(torch.distributed.get_world_size())]
+                        eval_tensors = [torch.zeros_like(eval_loss_tensor) for _ in range(torch.distributed.get_world_size())]
                         dist.all_gather(eval_tensors, eval_loss_tensor)
+
                         eval_loss = sum(eval_tensors).item()
                         batch_num = sum(batch_tensors).item()
                     # Print loss of dev dataset
@@ -420,7 +419,8 @@ def main():
                             dev_bleu_em = dev_bleu + dev_em
                         if args.data_num == -1:
                             training_state['bleu_em'][cur_task].append({'step': training_state['global_step'], 'bleu_em': dev_bleu_em})
-                            tb_writer.add_scalar('dev_bleu_em_{}'.format(cur_task), dev_bleu_em, training_state['global_step'])
+                            if args.local_rank in [-1, 0]:
+                                tb_writer.add_scalar('dev_bleu_em_{}'.format(cur_task), dev_bleu_em, training_state['global_step'])
 
                         if dev_bleu_em > training_state['best_bleu_em'][cur_task]:
                             training_state['not_bleu_em_inc_cnt'][cur_task] = 0
@@ -539,10 +539,10 @@ def main():
                 if args.local_rank in [-1, 0]:
                     fa_dict[cur_task].write(result_str)
                     fa.write(result_str)
-                if args.res_fn:
-                    with open(args.res_fn, 'a+') as f:
-                        f.write('[Time: {}] {}\n'.format(get_elapse_time(t0), file))
-                        f.write(result_str)
+                    if args.res_fn:
+                        with open(args.res_fn, 'a+') as f:
+                            f.write('[Time: {}] {}\n'.format(get_elapse_time(t0), file))
+                            f.write(result_str)
 
     if args.local_rank in [-1, 0]:
         logger.info("Finish and take {}".format(get_elapse_time(t0)))
@@ -551,6 +551,7 @@ def main():
         fa.write("Finish and take {}".format(get_elapse_time(t0)))
         fa.close()
 
+    cleanup(args)
 
 if __name__ == "__main__":
     main()

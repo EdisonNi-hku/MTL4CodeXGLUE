@@ -26,6 +26,7 @@ PREFIX=${22}
 DATA=${23}
 TIMES=${24}
 DDP=${25}
+AUX_PREFIX=${26}
 
 DATADIR="/cluster/work/sachan/leonhard/jingwei/ni2/MTL4CodeXGLUE/${DATA}"
 
@@ -39,6 +40,10 @@ fi
 
 if [[ $PREFIX != 0 ]]; then
   PREFIX_NAME='_prefix'${PREFIX}
+fi
+
+if [[ $AUX_PREFIX != 0 ]]; then
+  AUX_PREFIX_NAME='_auxprefix'
 fi
 
 if [[ $AUX_TYPE != 0 ]]; then
@@ -60,7 +65,7 @@ fi
 
 EFF_BS=$((${BS}*${GRADIENT_STEP}))
 if [[ ${TASK} == 'multi_task' || ${TASK} == 'multi_auxiliary' || ${TASK} == 'summarize_auxiliary' || ${TASK} == 'translate_auxiliary' ]]; then
-  FULL_MODEL_TAG=${MODEL_TAG}_${DATA_TAG}_lr${LR}_s${26}_a${AUX_PER}${AUX_NAME}${PREFIX_NAME}_${DATA}
+  FULL_MODEL_TAG=${MODEL_TAG}_${DATA_TAG}_lr${LR}_s${27}_a${AUX_PER}${AUX_NAME}${PREFIX_NAME}_${DATA}${AUX_PREFIX_NAME}
 else
   FULL_MODEL_TAG=${MODEL_TAG}_${DATA_TAG}_lr${LR}_bs${EFF_BS}_src${SRC_LEN}_trg${TRG_LEN}_pat${PATIENCE}_e${EPOCH}
 fi
@@ -112,17 +117,17 @@ fi
 
 if [[ ${TASK} == 'multi_task' ]]; then
   RUN_FN=${WORKDIR}/run_multi_gen_cont.py
-  MULTI_TASK_AUG='--max_steps '${26}' --save_steps '${27}' --log_steps '${28}
+  MULTI_TASK_AUG='--max_steps '${27}' --save_steps '${28}' --log_steps '${29}
 elif [[ ${TASK} == 'clone' ]]; then
   RUN_FN=${WORKDIR}/run_clone_cont.py
 elif [[ ${TASK} == 'defect' ]] && [[ ${MODEL_TYPE} == 'roberta' ||  ${MODEL_TYPE} == 'bart' ]]; then
   RUN_FN=${WORKDIR}/run_defect_cont.py
 elif [[ ${TASK} == 'multi_auxiliary' ]]; then
   RUN_FN=${WORKDIR}/run_multi_gen_aux.py
-  MULTI_TASK_AUG='--max_steps '${26}' --save_steps '${27}' --log_steps '${28}' --aux_type '${AUX_TYPE}
+  MULTI_TASK_AUG='--max_steps '${27}' --save_steps '${28}' --log_steps '${29}' --aux_type '${AUX_TYPE}
 elif [[ ${TASK} == 'summarize_auxiliary' || ${TASK} == 'translate_auxiliary' ]]; then
   RUN_FN=${WORKDIR}/run_summarize_aux.py
-  MULTI_TASK_AUG='--max_steps '${26}' --save_steps '${27}' --log_steps '${28}' --aux_type '${AUX_TYPE}
+  MULTI_TASK_AUG='--max_steps '${27}' --save_steps '${28}' --log_steps '${29}' --aux_type '${AUX_TYPE}
 else
   RUN_FN=${WORKDIR}/run_gen_cont.py
 fi
@@ -136,7 +141,7 @@ GPU_NUM=$(echo ${GPU} | tr "," "\n" | wc -l)
 if [[ ${DDP} == 0 ]]; then
   PYTHON_CMD="python ${RUN_FN}"
 elif [[ ${DDP} == 1 ]]; then
-  PYTHON_CMD="python -m torch.distributed.launch --nproc_per_node=${GPU_NUM} --master_port 29501 ${RUN_FN}"
+  PYTHON_CMD="python -m torch.distributed.launch --nproc_per_node=${GPU_NUM} ${RUN_FN}"
 fi
 
 cmd="CUDA_VISIBLE_DEVICES=${GPU} \
@@ -145,7 +150,7 @@ cmd="CUDA_VISIBLE_DEVICES=${GPU} \
   --task ${TASK} --sub_task ${SUB_TASK} --model_type ${MODEL_TYPE} --data_num ${DATA_NUM} --aux_percentage ${AUX_PER} \
   --num_train_epochs ${EPOCH} --warmup_steps ${WARMUP} --learning_rate ${LR}e-5 --patience ${PATIENCE} \
   --tokenizer_name=${TOKENIZER}  --model_name_or_path=${MODEL_PATH} --data_dir ${DATADIR}  \
-  --cache_path ${CACHE_DIR}  --output_dir ${OUTPUT_DIR}  --summary_dir ${SUMMARY_DIR} \
+  --cache_path ${CACHE_DIR}  --output_dir ${OUTPUT_DIR}  --summary_dir ${SUMMARY_DIR} --aux_prefix ${AUX_PREFIX} \
   --save_last_checkpoints --always_save_model --res_dir ${RES_DIR} --res_fn ${RES_FN} ${LOAD_ARG} --times ${TIMES} \
   --train_batch_size ${BS} --eval_batch_size ${EVAL_BS} --max_source_length ${SRC_LEN} --max_target_length ${TRG_LEN} \
   2>&1 | tee ${LOG}"
