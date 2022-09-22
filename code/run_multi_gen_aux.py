@@ -91,7 +91,10 @@ def main():
         t0 = time.time()
 
     set_dist(args)
-    logging.getLogger().setLevel(logging.INFO if dist.get_rank() in [-1, 0] else logging.WARN)
+    if args.local_rank == -1 or args.no_cuda:
+        logging.getLogger().setLevel(logging.INFO)
+    else:
+        logging.getLogger().setLevel(logging.INFO if dist.get_rank() in [-1, 0] else logging.WARN)
     set_seed(args)
     config, model, tokenizer = build_or_load_gen_model(args)
     if args.cont:

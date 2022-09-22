@@ -82,7 +82,10 @@ def main():
         t0 = time.time()
 
     set_dist(args)
-    logging.getLogger().setLevel(logging.INFO if dist.get_rank() in [-1, 0] else logging.WARN)
+    if args.local_rank == -1 or args.no_cuda:
+        logging.getLogger().setLevel(logging.INFO)
+    else:
+        logging.getLogger().setLevel(logging.INFO if dist.get_rank() in [-1, 0] else logging.WARN)
     set_seed(args)
     if 'summarize' in args.task:
         single_task = 'summarize'
@@ -118,7 +121,7 @@ def main():
             tb_writer = SummaryWriter(summary_fn)
 
         # Prepare training data loader
-        train_examples_data_dict = load_and_cache_single_task_aux_data(args, pool, tokenizer, 'train', is_sample=False)
+        train_examples_data_dict = load_and_cache_single_task_aux_data(args, single_task, pool, tokenizer, 'train', is_sample=False)
         logger.info("Data Counts:")
         for k, v in train_examples_data_dict.items():
             logger.info(k + ': ' + str(len(v[1])))
@@ -307,7 +310,7 @@ def main():
                 if 'dev_loss' in dev_dataset:
                     eval_examples_data_dict = dev_dataset['dev_loss']
                 else:
-                    eval_examples_data_dict = load_and_cache_single_task_aux_data(args, pool, tokenizer, 'dev')
+                    eval_examples_data_dict = load_and_cache_single_task_aux_data(args, single_task, pool, tokenizer, 'dev')
                     dev_dataset['dev_loss'] = eval_examples_data_dict
 
                 for cur_task in eval_examples_data_dict.keys():
@@ -397,7 +400,7 @@ def main():
                                 logger.info("Save the best ppl model into %s", output_model_file)
 
                 if args.do_eval_bleu:
-                    eval_examples_data_dict = load_and_cache_single_task_aux_data(args, pool, tokenizer, 'dev',
+                    eval_examples_data_dict = load_and_cache_single_task_aux_data(args, single_task, pool, tokenizer, 'dev',
                                                                             only_src=True, is_sample=True)
                     for cur_task in eval_examples_data_dict.keys():
                         if training_state['is_early_stop'][cur_task]:
@@ -502,7 +505,7 @@ def main():
     if args.do_test:
         logger.info("  " + "***** Testing *****")
         logger.info("  Batch size = %d", args.eval_batch_size)
-        eval_examples_data_dict = load_and_cache_single_task_aux_data(args, pool, tokenizer, 'test', only_src=True)
+        eval_examples_data_dict = load_and_cache_single_task_aux_data(args, single_task, pool, tokenizer, 'test', only_src=True)
         all_tasks = list(eval_examples_data_dict.keys())
         if args.local_rank in [-1, 0]:
             for cur_task in all_tasks:
