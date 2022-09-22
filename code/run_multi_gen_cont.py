@@ -163,7 +163,8 @@ def eval_bleu(args, eval_data, eval_examples, model, tokenizer, split_tag, cur_t
                     else:
                         f.write(pred_nl.strip() + '\n')
                         f1.write(gold.target.strip() + '\n')
-            dist.barrier()
+            if args.local_rank == 0:
+                dist.barrier()
         else:
             for pred_nl, gold in zip(pred_nls, eval_examples):
                 dev_accs.append(pred_nl.strip() == gold.target.strip())
