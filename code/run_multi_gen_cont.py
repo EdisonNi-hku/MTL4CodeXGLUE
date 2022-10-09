@@ -133,9 +133,9 @@ def eval_bleu(args, eval_data, eval_examples, model, tokenizer, split_tag, cur_t
                 pred_ids.append(preds)
 
     if args.local_rank != -1:
-        pred_ids = distributed_concat(torch.concat(pred_ids, dim=0), len(eval_sampler.dataset))
+        pred_ids = distributed_concat(torch.cat(pred_ids, dim=0), len(eval_sampler.dataset))
     else:
-        pred_ids = torch.concat(pred_ids, dim=0)
+        pred_ids = torch.cat(pred_ids, dim=0)
     pred_ids = list(pred_ids.cpu().numpy())
     pred_nls = [tokenizer.decode(id, skip_special_tokens=True, clean_up_tokenization_spaces=False) for id in pred_ids]
     if task == 'defect':

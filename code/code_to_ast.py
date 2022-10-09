@@ -30,8 +30,8 @@ dfg_function = {
 root_dir = os.path.dirname(__file__)
 logger = logging.getLogger(__name__)
 
-codet5_tokenizer = RobertaTokenizer.from_pretrained('Salesforce/codet5-base', cache_dir='cache', local_files_only=True)
-t5_tokenizer = T5Tokenizer.from_pretrained('t5-base', cache_dir='cache', local_files_only=True)
+codet5_tokenizer = RobertaTokenizer.from_pretrained('models/codet5-base', cache_dir='.', local_files_only=True)
+t5_tokenizer = T5Tokenizer.from_pretrained('models/t5-base', cache_dir='.', local_files_only=True)
 
 
 def get_data_flow(code, parser, lang):
