@@ -7,9 +7,9 @@ def get_cmd(task, sub_task, model_tag, gpu, data_num, bs, lr, source_length, tar
             model_dir, summary_dir, res_fn, cont, gradient_step, eval_bs, test, prefix, data_dir, work_dir, times, ddp,
             aux_percentage=10, aux_type='01', aux_prefix=0, max_steps=None, save_steps=None, log_steps=None):
     if task != 'translate':
-        eval_bs = bs
+        eval_bs = eval_bs
     if task == 'clone':
-        eval_bs = bs / 2
+        eval_bs = eval_bs / 2
     if max_steps is None:
         cmd_str = 'bash code/exp_with_args.sh %s %s %s %s %d %d %d %d %d %d %d %d %s %s %s %d %d %d %d %d %s %d %s %s %s %d %d' % \
                   (task, sub_task, model_tag, gpu, data_num, bs, lr, source_length, target_length, patience, epoch,
@@ -182,8 +182,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_tag", type=str, default='codet5_base',
                         choices=['roberta', 'codebert', 'bart_base', 'codet5_small', 'codet5_base', 'cotext', 't5_base'])
-    parser.add_argument("--data_dir", type=str, default='/cluster/work/sachan/leonhard/jingwei/ni2/MTL4CodeXGLUE/data')
-    parser.add_argument("--work_dir", type=str, default='/cluster/work/sachan/leonhard/jingwei/ni2/MTL4CodeXGLUE/code')
+    parser.add_argument("--data_dir", type=str, default='data')
+    parser.add_argument("--work_dir", type=str, default='code')
     parser.add_argument("--task", type=str, default='summarize', choices=['summarize', 'concode', 'translate',
                                                                           'refine', 'defect', 'clone', 'multi_task',
                                                                           'dataflow', 'identifier', 'multi_auxiliary',
@@ -196,7 +196,7 @@ if __name__ == '__main__':
     parser.add_argument("--gpu", type=str, default='0', help='index of the gpu to use in a cluster')
     parser.add_argument("--gas", type=int, default=1, help='gradient accumulate steps')
     parser.add_argument("--cont", type=int, default=0)
-    parser.add_argument("--eval_bs", type=int, default=8, help='evaluation batch size')
+    parser.add_argument("--eval_bs", type=int, default=64, help='evaluation batch size')
     parser.add_argument("--aux_percentage", type=int, default=10,
                         help='percentage of auxiliary data')
     parser.add_argument("--test", type=int, default=0)
