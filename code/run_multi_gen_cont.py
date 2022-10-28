@@ -169,6 +169,9 @@ def eval_bleu(args, eval_data, eval_examples, model, tokenizer, split_tag, cur_t
                 if task == 'summarize':
                     predictions.append(str(gold.idx) + '\t' + pred_nl)
 
+        if args.local_rank != -1:
+            dist.barrier()
+
         if task == 'summarize':
             (goldMap, predictionMap) = smooth_bleu.computeMaps(predictions, gold_fn)
             bleu = round(smooth_bleu.bleuFromMaps(goldMap, predictionMap)[0], 2)
